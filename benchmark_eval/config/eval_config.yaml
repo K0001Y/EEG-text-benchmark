@@ -1,0 +1,113 @@
+# 统一 EEG-to-Text Benchmark 评估配置
+# 默认配置，可通过命令行参数或自定义配置文件覆盖
+
+# 数据相关配置
+data:
+  # EEG 序列最大长度
+  max_len: 58
+  # EEG 通道数（每频段）
+  dim: 105
+  # EEG 类型：GD (Gaze Duration), FFD (First Fixation Duration), TRT (Total Reading Time)
+  eeg_type: "GD"
+  # 频段列表
+  bands: ["_t1", "_t2", "_a1", "_a2", "_b1", "_b2", "_g1", "_g2"]
+  # 数据划分种子
+  split_seed: 42
+  # 训练/验证/测试比例
+  split_ratios:
+    train: 0.8
+    val: 0.1
+    test: 0.1
+
+# 文本生成配置
+generation:
+  # 最大生成 token 数
+  max_new_tokens: 64
+  # beam search 大小（1 表示 greedy decoding）
+  num_beams: 1
+  # 是否采样
+  do_sample: false
+  # 是否早停
+  early_stopping: true
+  # 温度（仅在 do_sample=true 时有效）
+  temperature: 1.0
+  # top_p（仅在 do_sample=true 时有效）
+  top_p: 1.0
+
+# 评估指标配置
+metrics:
+  # 是否计算 BLEU
+  compute_bleu: true
+  # 是否计算 ROUGE
+  compute_rouge: true
+  # 是否计算 WER
+  compute_wer: true
+  # 是否计算 BERTScore（需要额外依赖，计算较慢）
+  compute_bertscore: false
+  # BERTScore 模型类型
+  bertscore_model: "microsoft/deberta-xlarge-mnli"
+  # 是否计算分组指标（by_task, by_subject, by_dataset）
+  compute_grouped_metrics: true
+
+# 评估流程配置
+evaluation:
+  # 评估批次大小
+  batch_size: 8
+  # DataLoader 工作进程数
+  num_workers: 0
+  # 随机种子
+  seed: 42
+  # 是否启用断点恢复
+  resume: true
+  # 日志级别: DEBUG, INFO, WARNING, ERROR
+  log_level: "INFO"
+  # 是否保存每个样本的预测结果
+  save_predictions: true
+
+# 模型特定配置（各模型 wrapper 的默认参数）
+models:
+  # EEG-To-Text 模型配置
+  eeg_to_text:
+    model_type: "bart"  # 或 "t5"
+    in_feature: 840
+    decoder_embedding_size: 1024
+    additional_encoder_nhead: 8
+    additional_encoder_dim_feedforward: 2048
+  
+  # EEG2Text 模型配置
+  eeg2text:
+    max_spectro_datapoint: 24000
+    in_feature: 40
+    decoder_embedding_size: 1024
+    additional_encoder_nhead: 5
+    additional_encoder_dim_feedforward: 2048
+  
+  # CET-MAE 模型配置
+  cet_mae:
+    embed_dim: 1024
+    eeg_dim: 840
+    multi_heads: 8
+    feedforward_dim: 2048
+    trans_layers: 6
+    decoder_embed_dim: 840
+    pretrain_path: "./models/huggingface/bart-large"
+  
+  # GLIM 模型配置
+  glim:
+    text_model_id: "google/flan-t5-large"
+    input_eeg_len: 1280
+    hidden_eeg_len: 96
+    input_dim: 128
+    hidden_dim: 128
+    embed_dim: 1024
+
+# 对照实验配置
+control_experiments:
+  # 是否运行噪声 EEG 实验
+  run_noise_experiment: false
+  # 噪声种子
+  noise_seed: 42
+  # 是否运行 EEG-文本配对打乱实验
+  run_shuffle_experiment: false
+  # 打乱种子
+  shuffle_seed: 42

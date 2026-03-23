@@ -1,0 +1,63 @@
+{
+  "overall": {
+    "bleu1": 2.4,
+    "bleu2": 0.46,
+    "bleu3": 0.0,
+    "bleu4": 0.0,
+    "rouge1": 4.6,
+    "rouge2": 0.14,
+    "rougeL": 4.31,
+    "wer": 245.19
+  },
+  "grouped": {
+    "by_task": {
+      "task1-SR": {
+        "bleu1": 2.83,
+        "bleu2": 0.51,
+        "bleu3": 0.0,
+        "bleu4": 0.0,
+        "rouge1": 5.17,
+        "rouge2": 0.14,
+        "rougeL": 4.76,
+        "wer": 230.72
+      },
+      "task2-NR": {
+        "bleu1": 2.21,
+        "bleu2": 0.48,
+        "bleu3": 0.0,
+        "bleu4": 0.0,
+        "rouge1": 4.39,
+        "rouge2": 0.17,
+        "rougeL": 4.21,
+        "wer": 235.62
+      },
+      "task2-NR-2.0": {
+        "bleu1": 1.98,
+        "bleu2": 0.31,
+        "bleu3": 0.0,
+        "bleu4": 0.0,
+        "rouge1": 3.86,
+        "rouge2": 0.08,
+        "rougeL": 3.61,
+        "wer": 242.95
+      },
+      "task3-TSR": {
+        "bleu1": 2.66,
+        "bleu2": 0.56,
+        "bleu3": 0.0,
+        "bleu4": 0.0,
+        "rouge1": 5.09,
+        "rouge2": 0.17,
+        "rougeL": 4.79,
+        "wer": 273.14
+      }
+    }
+  },
+  "num_samples": 1858,
+  "task_sample_counts": {
+    "task1-SR": 469,
+    "task2-NR": 341,
+    "task2-NR-2.0": 576,
+    "task3-TSR": 472
+  }
+}
