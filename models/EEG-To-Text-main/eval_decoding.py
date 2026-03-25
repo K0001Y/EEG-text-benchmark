@@ -282,21 +282,23 @@ if __name__ == '__main__':
     # task_name = 'task1_task2_task3'
 
     ''' set up dataloader '''
+    # 数据路径配置 - 使用spectro格式的pickle文件
+    DATA_ROOT = '/root/autodl-tmp/benchmark/data'
     whole_dataset_dicts = []
     if 'task1' in task_name:
-        dataset_path_task1 = '/data/johj/ZuCo_data/task1-SR/task1_source.pkl' 
+        dataset_path_task1 = f'{DATA_ROOT}/ZuCo1/task1-SR/pickle/task1-SR-dataset-spectro.pickle' 
         with open(dataset_path_task1, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
     if 'task2' in task_name:
-        dataset_path_task2 = '/data/johj/ZuCo_data/task2-NR/task2_source.pkl' 
+        dataset_path_task2 = f'{DATA_ROOT}/ZuCo1/task2-NR/pickle/task2-NR-dataset-spectro.pickle' 
         with open(dataset_path_task2, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
     if 'task3' in task_name:
-        dataset_path_task3 = '/data/johj/ZuCo_data/task3-TSR/task3_source.pkl' 
+        dataset_path_task3 = f'{DATA_ROOT}/ZuCo1/task3-TSR/pickle/task3-TSR-dataset-spectro.pickle' 
         with open(dataset_path_task3, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
     if 'taskNRv2' in task_name:
-        dataset_path_taskNRv2 = '/data/johj/ZuCo_data/task2-NR-2.0/taskNRv2_source.pkl' 
+        dataset_path_taskNRv2 = f'{DATA_ROOT}/ZuCo2/task1-NR/pickle/task2-NR-2.0-dataset-spectro.pickle' 
         with open(dataset_path_taskNRv2, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
     print()
