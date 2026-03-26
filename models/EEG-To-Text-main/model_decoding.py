@@ -49,11 +49,11 @@ class BrainTranslator(nn.Module):
             **kwargs,
     ):
         encoded_embedding=self.addin_forward(input_embeddings_batch, input_masks_invert)
+        # 不显式传递 return_dict，避免与 transformers 内部冲突
         output=self.pretrained.generate(
             inputs_embeds = encoded_embedding,
             attention_mask = input_masks_batch[:,:encoded_embedding.shape[1]],
             labels = target_ids_batch_converted,
-            return_dict = True,
             generation_config=generation_config,
             logits_processor=logits_processor,
             stopping_criteria=stopping_criteria,
@@ -133,11 +133,11 @@ class T5Translator(nn.Module):
         input_masks_batch = torch.cat((torch.ones(encoded_embedding.size(0), task_embedding.size(1)).to(encoded_embedding.device), input_masks_batch), dim=1)
 
 
+        # 不显式传递 return_dict，避免与 transformers 内部冲突
         output=self.pretrained.generate(
             inputs_embeds = encoded_embedding,
             attention_mask = input_masks_batch[:,:encoded_embedding.shape[1]],
             labels = target_ids_batch_converted,
-            return_dict = True,
             generation_config=generation_config,
             logits_processor=logits_processor,
             stopping_criteria=stopping_criteria,

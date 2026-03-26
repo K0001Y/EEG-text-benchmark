@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 
 import torch
 import torch.nn.functional as F
-from transformers import BartTokenizer, BartForConditionalGeneration, T5Tokenizer, T5ForConditionalGeneration
+from transformers import BartTokenizer, BartForConditionalGeneration, T5Tokenizer, T5ForConditionalGeneration, GenerationConfig
 
 # 添加父目录到路径
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -109,17 +109,18 @@ class EEGToTextWrapper(BenchmarkModelWrapper):
         else:
             raise ValueError(f"Unsupported model_type: {self.model_type}")
 
+        # 去掉 DataParallel 的 module. 前缀
+        if any(k.startswith("module.") for k in state_dict.keys()):
+            logger.info("Detected DataParallel checkpoint, stripping 'module.' prefix")
+            state_dict = {k[len("module."):]: v for k, v in state_dict.items()}
+
         # 加载训练好的权重
-        try:
-            self.model.load_state_dict(state_dict, strict=False)
-            logger.info("Loaded model weights successfully")
-        except Exception as e:
-            logger.warning("Failed to load full state dict, trying partial load: %s", e)
-            # 部分加载
-            model_dict = self.model.state_dict()
-            filtered_dict = {k: v for k, v in state_dict.items() if k in model_dict}
-            model_dict.update(filtered_dict)
-            self.model.load_state_dict(model_dict)
+        missing, unexpected = self.model.load_state_dict(state_dict, strict=False)
+        if missing:
+            logger.warning("Missing keys (%d): %s", len(missing), missing[:5])
+        if unexpected:
+            logger.warning("Unexpected keys (%d): %s", len(unexpected), unexpected[:5])
+        logger.info("Loaded model weights successfully (missing=%d, unexpected=%d)", len(missing), len(unexpected))
 
         self.model.to(self.device)
 
@@ -136,10 +137,42 @@ class EEGToTextWrapper(BenchmarkModelWrapper):
         - input_embeddings: (B, seq_len, 840)，词级 EEG 序列
         - input_mask: (B, seq_len)，0/1 mask
         - input_mask_invert: (B, seq_len)，反转的 mask（用于 transformer padding）
+        
+        注意：EEG-To-Text 训练时对每个词单独做 1D 归一化，
+        但统一数据集做的是 2D 归一化。需要在此处转换为 1D 归一化。
         """
         # 统一输入已经是 (B, L_max, C=840)
-        # EEG-To-Text 直接使用这个作为 input_embeddings
-        input_embeddings = eeg.to(self.device)  # (B, L_max, 840)
+        # EEG-To-Text 需要对每个词单独做 1D 归一化，与训练时一致
+        
+        def normalize_1d_per_word(eeg_tensor: torch.Tensor, mask_tensor: torch.Tensor) -> torch.Tensor:
+            """对每个词的 EEG 向量单独做 z-score 归一化。
+            
+            Args:
+                eeg_tensor: (B, L, C) EEG 序列
+                mask_tensor: (B, L) 1 表示有效位置
+            Returns:
+                归一化后的 EEG 张量
+            """
+            B, L, C = eeg_tensor.shape
+            result = torch.zeros_like(eeg_tensor)
+            
+            for b in range(B):
+                for l in range(L):
+                    if mask_tensor[b, l] > 0:  # 只处理有效位置
+                        vec = eeg_tensor[b, l, :]  # (C,)
+                        mean = vec.mean()
+                        std = vec.std()
+                        if std > 1e-8:
+                            result[b, l, :] = (vec - mean) / std
+                        # 否则保持零向量
+            
+            return result
+        
+        
+        # 对每个词单独做 1D 归一化，与 EEG-To-Text 训练时一致
+        input_embeddings = normalize_1d_per_word(eeg, mask)
+        input_embeddings = input_embeddings.to(self.device)
+        
         input_mask = mask.to(self.device)  # (B, L_max)
         input_mask_invert = (1 - input_mask).bool()  # 反转 mask
 
@@ -168,17 +201,30 @@ class EEGToTextWrapper(BenchmarkModelWrapper):
             input_mask = encoded["input_mask"]
             input_mask_invert = encoded["input_mask_invert"]
 
-            # 调用模型的 generate 方法（纯自回归）
-            output_ids = self.model.generate(
-                input_embeddings_batch=input_embeddings,
-                input_masks_batch=input_mask,
-                input_masks_invert=input_mask_invert,
-                target_ids_batch_converted=None,
+            # 使用 GenerationConfig 避免参数冲突
+            generation_config = GenerationConfig(
                 max_new_tokens=self.max_new_tokens,
                 num_beams=self.num_beams,
                 early_stopping=True,
                 do_sample=False,  # greedy decoding
+                pad_token_id=self.tokenizer.pad_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
             )
+            
+            # 调用模型的 generate 方法（纯自回归）
+            output = self.model.generate(
+                input_embeddings_batch=input_embeddings,
+                input_masks_batch=input_mask,
+                input_masks_invert=input_mask_invert,
+                target_ids_batch_converted=None,
+                generation_config=generation_config,
+            )
+
+            # 处理输出：可能是 GreedySearchDecoderOnlyOutput 对象或 tensor
+            if hasattr(output, 'sequences'):
+                output_ids = output.sequences
+            else:
+                output_ids = output
 
             # 解码生成的 token ids
             generated_texts = self.tokenizer.batch_decode(
