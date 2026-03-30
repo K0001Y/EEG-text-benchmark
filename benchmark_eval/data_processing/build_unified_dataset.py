@@ -90,7 +90,7 @@ def get_sent_eeg(sent_obj: Dict[str, Any], bands: List[str], dim: int) -> Dict[s
 def build_samples_for_task(
     dataset: Dict[str, List[Any]],
     task_name: str,
-    max_len: int = 58,
+    max_len: int = 56,  # 与 EEG-To-Text 原始保持一致
     dim: int = 105,
     eeg_type: str = "GD",
     bands: List[str] | None = None,
@@ -105,6 +105,14 @@ def build_samples_for_task(
         - "content": 句子文本
         - "sentence_level_EEG": 带有 mean_t1...mean_g2 字段的字典
         - "word": 词级列表, 每个元素含 "word_level_EEG" 下的 eeg_type/bands 数据
+    
+    存储多种格式供不同模型使用:
+    - eeg_raw: 原始词级 EEG（未归一化），shape (max_len, 840)
+    - sent_eeg_raw: 句级 EEG（单独存储），shape (840,)
+    - eeg_normalized_1d: 逐词 1D 归一化版本（EEG-To-Text 使用）
+    - eeg_normalized_2d: 词级+句级 2D 全局归一化版本（CET-MAE 等使用）
+    - mask: 基于词数的 mask，不包含句级 EEG
+    - seq_len: 原始词数
     """
     if bands is None:
         bands = list(DEFAULT_BANDS)
@@ -113,6 +121,7 @@ def build_samples_for_task(
         logger = get_logger("build_unified_dataset")
 
     samples_by_subject: Dict[str, List[Dict[str, Any]]] = {}
+    feature_dim = dim * len(bands)  # 840
 
     for subject, sent_list in dataset.items():
         subject_records: List[Dict[str, Any]] = []
@@ -122,8 +131,8 @@ def build_samples_for_task(
             if "word" not in sent_obj or not sent_obj["word"]:
                 continue
 
+            # 收集词级 EEG 原始向量
             word_embeddings_raw: List[torch.Tensor] = []
-            # 为了与 CET-MAE / EEG-To-Text 逻辑一致，这里只用 raw 做 2D 归一化
             for word in sent_obj["word"]:
                 t = get_word_embedding_eeg_tensor(word, eeg_type=eeg_type, bands=bands, dim=dim)
                 if t is None:
@@ -134,35 +143,74 @@ def build_samples_for_task(
             if not word_embeddings_raw:
                 continue
 
+            # 获取句级 EEG
             sent_eeg = get_sent_eeg(sent_obj, bands=bands, dim=dim)
             if sent_eeg is None:
                 continue
 
-            # 将句级 EEG 作为最后一个 time step 加入，然后做 2D 归一化
-            all_raw = word_embeddings_raw + [sent_eeg["raw"]]
-            raw_matrix = torch.stack(all_raw)  # (seq_len, C)
-            norm_matrix = normalize_2d(raw_matrix)
-            if torch.isnan(norm_matrix).any():
+            num_words = len(word_embeddings_raw)
+            
+            # 截断到 max_len（仅针对词级）
+            if num_words > max_len:
+                word_embeddings_raw = word_embeddings_raw[:max_len]
+                num_words = max_len
+
+            # ===== 1. 构建 eeg_raw：原始词级 EEG，padding 到 max_len =====
+            raw_padded = word_embeddings_raw.copy()
+            while len(raw_padded) < max_len:
+                raw_padded.append(torch.zeros(feature_dim, dtype=torch.float32))
+            eeg_raw = torch.stack(raw_padded).numpy().astype("float32")  # (max_len, 840)
+
+            # ===== 2. 构建 eeg_normalized_1d：逐词 1D 归一化（EEG-To-Text 使用）=====
+            norm_1d_list = []
+            for i, vec in enumerate(word_embeddings_raw):
+                norm_1d_list.append(normalize_1d(vec))
+            # padding
+            while len(norm_1d_list) < max_len:
+                norm_1d_list.append(torch.zeros(feature_dim, dtype=torch.float32))
+            eeg_normalized_1d = torch.stack(norm_1d_list)
+            if torch.isnan(eeg_normalized_1d).any():
                 continue
+            eeg_normalized_1d = eeg_normalized_1d.numpy().astype("float32")  # (max_len, 840)
 
-            seq_tensors = list(torch.unbind(norm_matrix, dim=0))
-            seq_len = len(seq_tensors)
+            # ===== 3. 构建 eeg_normalized_2d：词级+句级 2D 归一化（CET-MAE 等使用）=====
+            # 将句级 EEG 作为最后一个 time step 加入
+            all_raw_with_sent = word_embeddings_raw + [sent_eeg["raw"]]
+            raw_matrix_with_sent = torch.stack(all_raw_with_sent)  # (num_words+1, 840)
+            norm_2d_matrix = normalize_2d(raw_matrix_with_sent)
+            if torch.isnan(norm_2d_matrix).any():
+                continue
+            # padding 到 max_len (注意这里包含句级，所以有效长度是 num_words+1)
+            seq_len_with_sent = len(all_raw_with_sent)
+            norm_2d_list = list(torch.unbind(norm_2d_matrix, dim=0))
+            if seq_len_with_sent > max_len:
+                norm_2d_list = norm_2d_list[:max_len]
+                seq_len_with_sent = max_len
+            while len(norm_2d_list) < max_len:
+                norm_2d_list.append(torch.zeros(feature_dim, dtype=torch.float32))
+            eeg_normalized_2d = torch.stack(norm_2d_list).numpy().astype("float32")  # (max_len, 840)
 
-            # 截断到 max_len
-            if seq_len > max_len:
-                seq_tensors = seq_tensors[:max_len]
-                seq_len = max_len
+            # ===== 4. 句级 EEG 单独存储 =====
+            sent_eeg_raw = sent_eeg["raw"].numpy().astype("float32")  # (840,)
 
-            # padding 到固定长度
-            while len(seq_tensors) < max_len:
-                seq_tensors.append(torch.zeros(dim * len(bands), dtype=torch.float32))
-
-            eeg_array = torch.stack(seq_tensors).numpy().astype("float32")  # (L_max, C)
-            mask = [1.0] * seq_len + [0.0] * (max_len - seq_len)
+            # ===== 5. mask：基于词数，不包含句级 EEG =====
+            mask = [1.0] * num_words + [0.0] * (max_len - num_words)
+            
+            # ===== 6. mask_with_sent：包含句级 EEG 的 mask =====
+            mask_with_sent = [1.0] * min(seq_len_with_sent, max_len) + [0.0] * (max_len - min(seq_len_with_sent, max_len))
 
             record: Dict[str, Any] = {
-                "eeg": eeg_array,
-                "mask": mask,
+                # 多格式 EEG 数据
+                "eeg_raw": eeg_raw,                      # 原始词级，未归一化
+                "eeg_normalized_1d": eeg_normalized_1d,  # 逐词 1D 归一化（EEG-To-Text）
+                "eeg_normalized_2d": eeg_normalized_2d,  # 词+句 2D 归一化（CET-MAE）
+                "sent_eeg_raw": sent_eeg_raw,            # 句级 EEG，单独存储
+                # 兼容旧字段（使用 1D 归一化版本作为默认）
+                "eeg": eeg_normalized_1d,
+                # mask
+                "mask": mask,                            # 词级 mask
+                "mask_with_sent": mask_with_sent,        # 包含句级的 mask
+                # 文本
                 "input_text": sent_obj.get("content", ""),
                 "reference_text": sent_obj.get("content", ""),
                 "phase": None,  # 稍后填入 train/val/test
@@ -171,6 +219,8 @@ def build_samples_for_task(
                     "subject": subject,
                     "sentence_index": int(sent_idx),
                     "source": "ZuCo-MAT",
+                    "seq_len": num_words,                # 原始词数
+                    "seq_len_with_sent": min(seq_len_with_sent, max_len),  # 包含句级的长度
                 },
             }
             subject_records.append(record)
@@ -248,7 +298,7 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated ZuCo task names to include",
     )
     parser.add_argument("--output", type=str, required=True, help="Output unified dataset pickle path")
-    parser.add_argument("--max-len", type=int, default=58, help="Max time steps L_max for EEG sequence")
+    parser.add_argument("--max-len", type=int, default=56, help="Max time steps L_max for EEG sequence (default 56, same as EEG-To-Text)")
     parser.add_argument("--dim", type=int, default=105, help="Number of EEG channels per band")
     parser.add_argument("--eeg-type", type=str, default="GD", help="EEG type key used in word_level_EEG (e.g. GD/FFD/TRT)")
     return parser.parse_args()
@@ -583,8 +633,10 @@ def _load_task3_relation_labels(materials_dir: str, logger) -> Dict[str, str]:
 def _enrich_samples_with_metadata_and_labels(samples: List[Dict[str, Any]], logger) -> None:
     """补全 meta 中的 dataset/text_uid 以及情感与关系标签。"""
     this_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(this_dir)
-    zuco1_materials = os.path.join(project_root, "data", "ZuCo1", "task_materials")
+    # project_root 是 benchmark_eval，需要上一级到 benchmark
+    project_root = os.path.dirname(this_dir)  # benchmark_eval
+    benchmark_root = os.path.dirname(project_root)  # benchmark
+    zuco1_materials = os.path.join(benchmark_root, "data", "ZuCo1", "task_materials")
 
     sentiment_map = _load_task1_sentiment_labels(zuco1_materials, logger)
     rel_task2_map = _load_task2_relation_labels(zuco1_materials, logger)

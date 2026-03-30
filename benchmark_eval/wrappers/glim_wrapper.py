@@ -52,7 +52,7 @@ class GLIMWrapper(BenchmarkModelWrapper):
         input_eeg_len: int = 1280,
         hidden_eeg_len: int = 96,
         input_dim: int = 128,
-        hidden_dim: int = 128,
+        hidden_dim: int = 256,
         embed_dim: int = 1024,
         **kwargs
     ):
@@ -89,10 +89,40 @@ class GLIMWrapper(BenchmarkModelWrapper):
             sys.path.insert(0, glim_model_path)
         
         try:
-            from glim import GLIM
+            # 使用绝对导入方式加载 GLIM 模块
+            # 需要先设置包结构使得相对导入可以工作
+            import importlib.util
+            import types
+            
+            glim_module_path = os.path.join(glim_model_path, "glim.py")
+            modules_path = os.path.join(glim_model_path, "modules.py")
+            
+            # 创建一个虚拟的 model 包
+            model_package = types.ModuleType('model')
+            model_package.__path__ = [glim_model_path]
+            model_package.__file__ = os.path.join(glim_model_path, '__init__.py')
+            sys.modules['model'] = model_package
+            
+            # 加载 modules 模块
+            spec_modules = importlib.util.spec_from_file_location("model.modules", modules_path)
+            modules = importlib.util.module_from_spec(spec_modules)
+            sys.modules['model.modules'] = modules
+            spec_modules.loader.exec_module(modules)
+            
+            # 加载 glim 模块
+            spec = importlib.util.spec_from_file_location("model.glim", glim_module_path)
+            glim_module = importlib.util.module_from_spec(spec)
+            sys.modules['model.glim'] = glim_module
+            spec.loader.exec_module(glim_module)
+            GLIM = glim_module.GLIM
+            
             from transformers import AutoTokenizer, T5ForConditionalGeneration, BartForConditionalGeneration
             
             logger.info("Loading GLIM model from %s", model_checkpoint)
+            
+            # 保存模型参数（因为 GLIM 模型不保存这些属性）
+            self.input_dim = input_dim
+            self.input_eeg_len = input_eeg_len
             
             # 初始化模型
             self.model = GLIM(
@@ -172,7 +202,7 @@ class GLIMWrapper(BenchmarkModelWrapper):
         
         # 使用 adaptive average pooling
         eeg_transposed = eeg.transpose(1, 2)  # (B, 840, L_max)
-        eeg_pooled = F.adaptive_avg_pool1d(eeg_transposed, self.model.input_dim)  # (B, 840, 128)
+        eeg_pooled = F.adaptive_avg_pool1d(eeg_transposed, self.input_dim)  # (B, 840, 128)
         eeg_compressed = eeg_pooled.transpose(1, 2)  # (B, 128, 840)
         
         # 等等，这样维度不对。让我们重新思考：
@@ -187,14 +217,14 @@ class GLIMWrapper(BenchmarkModelWrapper):
         # 实际上，我们需要在通道维度上做压缩
         # 将 (B, L_max, 840) 重塑为 (B*L_max, 840, 1)，然后使用 adaptive pooling
         eeg_reshaped = eeg.view(B * L_max, C, 1)  # (B*L_max, 840, 1)
-        eeg_channel_compressed = F.adaptive_avg_pool1d(eeg_reshaped, self.model.input_dim)  # (B*L_max, 840, 128)
+        eeg_channel_compressed = F.adaptive_avg_pool1d(eeg_reshaped, self.input_dim)  # (B*L_max, 840, 128)
         
         # 不对，adaptive_avg_pool1d 作用在最后一个维度上
         # 让我们使用更简单的方法：线性插值
         
         # 方法：将 840 维分成 128 组，每组取平均
-        group_size = C // self.model.input_dim  # 840 // 128 = 6
-        remainder = C % self.model.input_dim  # 840 % 128 = 72
+        group_size = C // self.input_dim  # 840 // 128 = 6
+        remainder = C % self.input_dim  # 840 % 128 = 72
         
         # 简化版本：直接使用线性投影（需要一个可学习的投影层）
         # 但这会增加参数，不符合 wrapper 的设计
@@ -203,7 +233,7 @@ class GLIMWrapper(BenchmarkModelWrapper):
         # 将 840 分成 128 组，每组大小约为 6-7
         eeg_compressed_list = []
         start_idx = 0
-        for i in range(self.model.input_dim):
+        for i in range(self.input_dim):
             end_idx = start_idx + group_size + (1 if i < remainder else 0)
             group = eeg[:, :, start_idx:end_idx].mean(dim=-1, keepdim=True)  # (B, L_max, 1)
             eeg_compressed_list.append(group)
@@ -215,7 +245,7 @@ class GLIMWrapper(BenchmarkModelWrapper):
         eeg_transposed = eeg_compressed.transpose(1, 2)  # (B, 128, L_max)
         eeg_interpolated = F.interpolate(
             eeg_transposed,
-            size=self.model.input_eeg_len,
+            size=self.input_eeg_len,
             mode='linear',
             align_corners=False
         )  # (B, 128, 1280)
@@ -225,7 +255,7 @@ class GLIMWrapper(BenchmarkModelWrapper):
         mask_unsqueezed = mask.unsqueeze(1).float()  # (B, 1, L_max)
         mask_interpolated = F.interpolate(
             mask_unsqueezed,
-            size=self.model.input_eeg_len,
+            size=self.input_eeg_len,
             mode='nearest'
         )  # (B, 1, 1280)
         mask_final = mask_interpolated.squeeze(1)  # (B, 1280)
@@ -333,7 +363,8 @@ class GLIMWrapper(BenchmarkModelWrapper):
         self,
         eeg: torch.Tensor,
         mask: torch.Tensor,
-        meta: List[Dict[str, Any]] | None = None
+        meta: List[Dict[str, Any]] | None = None,
+        batch: Dict[str, Any] | None = None,
     ) -> List[str]:
         """从 EEG 生成文本（自回归，禁用 teacher forcing）。
         
@@ -341,6 +372,7 @@ class GLIMWrapper(BenchmarkModelWrapper):
             eeg: (B, L_max, 840) EEG 序列
             mask: (B, L_max) 1 表示有效，0 表示 padding
             meta: 元信息列表
+            batch: 完整 batch（包含多种 EEG 格式）
             
         Returns:
             生成的文本列表，长度为 batch_size
@@ -349,6 +381,9 @@ class GLIMWrapper(BenchmarkModelWrapper):
             encoded = self.encode_eeg(eeg, mask, meta)
             
             eeg_embeds = encoded["eeg_embeds"]  # (B, hidden_eeg_len, embed_dim)
+            
+            # 转换为 bfloat16 以匹配 T5 模型的精度
+            eeg_embeds = eeg_embeds.to(torch.bfloat16)
             
             # 使用 text_model 的 generate 方法进行自回归生成
             from transformers.modeling_outputs import BaseModelOutput

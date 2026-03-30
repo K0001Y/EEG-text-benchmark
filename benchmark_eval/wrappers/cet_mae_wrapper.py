@@ -118,7 +118,8 @@ class CETMAEWrapper(BenchmarkModelWrapper):
         self,
         eeg: torch.Tensor,
         mask: torch.Tensor,
-        meta: List[Dict[str, Any]] | None = None
+        meta: List[Dict[str, Any]] | None = None,
+        batch: Dict[str, Any] | None = None,
     ) -> Any:
         """将统一格式的 EEG (B, L_max, C=840) 编码成模型内部表示。
         
@@ -126,17 +127,25 @@ class CETMAEWrapper(BenchmarkModelWrapper):
             eeg: (B, L_max, 840) EEG 序列
             mask: (B, L_max) 1 表示有效，0 表示 padding
             meta: 元信息列表
+            batch: 完整 batch，CET-MAE 需要使用 eeg_normalized_2d 和 mask_with_sent
             
         Returns:
             包含编码后 EEG 表示的字典
         """
-        # CET-MAE 的输入格式：
-        # - eeg: (B, L_max, 840)
-        # - eeg_attn_mask: (B, L_max) 1 表示有效，0 表示 padding
-        # - eeg_attn_mask_invert: (B, L_max) 0 表示有效，1 表示 padding（用于 PyTorch mask）
+        # CET-MAE 使用 eeg_normalized_2d（词级+句级 2D 归一化）
+        # 如果 batch 中有 eeg_normalized_2d，使用它；否则使用默认 eeg
+        if batch is not None and "eeg_normalized_2d" in batch:
+            input_eeg = batch["eeg_normalized_2d"].to(self.device)
+            # 使用包含句级的 mask
+            if "mask_with_sent" in batch:
+                input_mask = batch["mask_with_sent"].to(self.device)
+            else:
+                input_mask = mask.to(self.device)
+        else:
+            # 回退到默认 eeg
+            input_eeg = eeg.to(self.device)
+            input_mask = mask.to(self.device)
         
-        input_eeg = eeg.to(self.device)  # (B, L_max, 840)
-        input_mask = mask.to(self.device)  # (B, L_max)
         input_mask_invert = (1 - input_mask).bool()  # 反转 mask
         
         return {
@@ -149,7 +158,8 @@ class CETMAEWrapper(BenchmarkModelWrapper):
         self,
         eeg: torch.Tensor,
         mask: torch.Tensor,
-        meta: List[Dict[str, Any]] | None = None
+        meta: List[Dict[str, Any]] | None = None,
+        batch: Dict[str, Any] | None = None,
     ) -> List[str]:
         """从 EEG 生成文本（自回归，禁用 teacher forcing）。
         
@@ -157,12 +167,13 @@ class CETMAEWrapper(BenchmarkModelWrapper):
             eeg: (B, L_max, 840) EEG 序列
             mask: (B, L_max) 1 表示有效，0 表示 padding
             meta: 元信息列表
+            batch: 完整 batch（包含多种 EEG 格式）
             
         Returns:
             生成的文本列表，长度为 batch_size
         """
         with torch.no_grad():
-            encoded = self.encode_eeg(eeg, mask, meta)
+            encoded = self.encode_eeg(eeg, mask, meta, batch)
             
             input_eeg = encoded["eeg"]
             input_mask_invert = encoded["eeg_mask_invert"]

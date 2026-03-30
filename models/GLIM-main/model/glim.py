@@ -5,7 +5,7 @@ import torch.nn.functional as F  # PyTorch函数式接口
 import torch.distributed as dist  # PyTorch分布式训练
 import pandas as pd  # 数据处理库
 import lightning as L  # PyTorch Lightning框架
-from typing import Literal  # 类型提示，用于限制字面量类型
+from typing import Literal, Any  # 类型提示，用于限制字面量类型
 from torch import Tensor  # 张量类型
 from copy import deepcopy  # 深拷贝
 from collections import defaultdict  # 默认字典
@@ -141,7 +141,7 @@ class GLIM(L.LightningModule):  # 继承PyTorch Lightning的LightningModule
         # maybe self.prompt_nums
         pass
 
-    def on_save_checkpoint(self, checkpoint: torch.Dict[str, torch.Any]) -> None:  # 保存检查点时的回调
+    def on_save_checkpoint(self, checkpoint: dict[str, Any]) -> None:  # 保存检查点时的回调
         # 从检查点中移除text_model的参数（因为它们是冻结的）
         for key in deepcopy(list(checkpoint['state_dict'].keys())):
             if 'text_model' in key: 

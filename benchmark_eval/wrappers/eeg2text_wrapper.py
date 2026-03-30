@@ -243,16 +243,23 @@ class EEG2TextWrapper(BenchmarkModelWrapper):
         self,
         eeg: torch.Tensor,
         mask: torch.Tensor,
-        meta: List[Dict[str, Any]] | None = None
+        meta: List[Dict[str, Any]] | None = None,
+        batch: Dict[str, Any] | None = None,
     ) -> List[str]:
         """
         从 EEG 生成文本（自回归，禁用 teacher forcing）。
+        
+        Args:
+            eeg: 统一格式 (B, L_max, 840)，本方法不使用此参数，仅作接口兼容
+            mask: 统一格式 (B, L_max)，同上
+            meta: 必须提供，包含 task / subject / sentence_index 字段
+            batch: 完整 batch（可选）
         
         Returns:
             生成的文本列表，长度为 batch_size。
         """
         with torch.no_grad():
-            # 编码 EEG
+            # 编码 EEG（从 spectro pickle 精确获取 raw EEG）
             encoded_embedding = self.encode_eeg(eeg, mask, meta)  # (B, seq_len, 1024)
             
             # 使用 BART decoder 自回归生成

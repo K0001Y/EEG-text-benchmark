@@ -1,0 +1,521 @@
+nohup: ignoring input
+==============================================
+GLIM Model Evaluation
+==============================================
+Project Root: /root/autodl-tmp/benchmark
+Data Path: /root/autodl-tmp/benchmark/benchmark_eval/data/unified_zuco.pkl
+Output Dir: /root/autodl-tmp/benchmark/benchmark_eval/test_outputs/eval_glim
+Checkpoint: /root/autodl-tmp/benchmark/models/GLIM-main/checkpoints/glim-zuco-epoch=199-step=49600.ckpt
+==============================================
+10:23:24 [INFO] - Logging initialized. Log file: /root/autodl-tmp/benchmark/benchmark_eval/test_outputs/eval_glim/eval.log
+INFO:benchmark_eval:Logging initialized. Log file: /root/autodl-tmp/benchmark/benchmark_eval/test_outputs/eval_glim/eval.log
+10:23:24 [INFO] - Starting evaluation with args: {'data_path': '/root/autodl-tmp/benchmark/benchmark_eval/data/unified_zuco.pkl', 'phase': 'test', 'output_dir': '/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/eval_glim', 'model_name': 'glim', 'model_checkpoint': '/root/autodl-tmp/benchmark/models/GLIM-main/checkpoints/glim-zuco-epoch=199-step=49600.ckpt', 'pretrain_checkpoint': None, 'batch_size': 8, 'num_workers': 0, 'resume': True}
+INFO:benchmark_eval:Starting evaluation with args: {'data_path': '/root/autodl-tmp/benchmark/benchmark_eval/data/unified_zuco.pkl', 'phase': 'test', 'output_dir': '/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/eval_glim', 'model_name': 'glim', 'model_checkpoint': '/root/autodl-tmp/benchmark/models/GLIM-main/checkpoints/glim-zuco-epoch=199-step=49600.ckpt', 'pretrain_checkpoint': None, 'batch_size': 8, 'num_workers': 0, 'resume': True}
+10:23:31 [INFO] - Loaded dataset from /root/autodl-tmp/benchmark/benchmark_eval/data/unified_zuco.pkl, phase=test, total samples=1858
+INFO:benchmark_eval:Loaded dataset from /root/autodl-tmp/benchmark/benchmark_eval/data/unified_zuco.pkl, phase=test, total samples=1858
+10:23:33 [INFO] - Loading GLIM model from /root/autodl-tmp/benchmark/models/GLIM-main/checkpoints/glim-zuco-epoch=199-step=49600.ckpt
+INFO:benchmark_eval.glim_wrapper:Loading GLIM model from /root/autodl-tmp/benchmark/models/GLIM-main/checkpoints/glim-zuco-epoch=199-step=49600.ckpt
+/root/autodl-tmp/benchmark/benchmark_eval/wrappers/glim_wrapper.py:142: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  checkpoint = torch.load(model_checkpoint, map_location=device)
+10:23:37 [INFO] - Model weights loaded from /root/autodl-tmp/benchmark/models/GLIM-main/checkpoints/glim-zuco-epoch=199-step=49600.ckpt
+INFO:benchmark_eval.glim_wrapper:Model weights loaded from /root/autodl-tmp/benchmark/models/GLIM-main/checkpoints/glim-zuco-epoch=199-step=49600.ckpt
+10:23:38 [INFO] - GLIM model loaded successfully
+INFO:benchmark_eval.glim_wrapper:GLIM model loaded successfully
+10:23:39 [INFO] - Processed up to index 8 / 1858
+INFO:benchmark_eval:Processed up to index 8 / 1858
+10:23:40 [INFO] - Processed up to index 16 / 1858
+INFO:benchmark_eval:Processed up to index 16 / 1858
+10:23:41 [INFO] - Processed up to index 24 / 1858
+INFO:benchmark_eval:Processed up to index 24 / 1858
+10:23:42 [INFO] - Processed up to index 32 / 1858
+INFO:benchmark_eval:Processed up to index 32 / 1858
+10:23:43 [INFO] - Processed up to index 40 / 1858
+INFO:benchmark_eval:Processed up to index 40 / 1858
+10:23:44 [INFO] - Processed up to index 48 / 1858
+INFO:benchmark_eval:Processed up to index 48 / 1858
+10:23:45 [INFO] - Processed up to index 56 / 1858
+INFO:benchmark_eval:Processed up to index 56 / 1858
+10:23:46 [INFO] - Processed up to index 64 / 1858
+INFO:benchmark_eval:Processed up to index 64 / 1858
+10:23:48 [INFO] - Processed up to index 72 / 1858
+INFO:benchmark_eval:Processed up to index 72 / 1858
+10:23:49 [INFO] - Processed up to index 80 / 1858
+INFO:benchmark_eval:Processed up to index 80 / 1858
+10:23:50 [INFO] - Processed up to index 88 / 1858
+INFO:benchmark_eval:Processed up to index 88 / 1858
+10:23:51 [INFO] - Processed up to index 96 / 1858
+INFO:benchmark_eval:Processed up to index 96 / 1858
+10:23:53 [INFO] - Processed up to index 104 / 1858
+INFO:benchmark_eval:Processed up to index 104 / 1858
+10:23:53 [INFO] - Processed up to index 112 / 1858
+INFO:benchmark_eval:Processed up to index 112 / 1858
+10:23:54 [INFO] - Processed up to index 120 / 1858
+INFO:benchmark_eval:Processed up to index 120 / 1858
+10:23:54 [INFO] - Processed up to index 128 / 1858
+INFO:benchmark_eval:Processed up to index 128 / 1858
+10:23:55 [INFO] - Processed up to index 136 / 1858
+INFO:benchmark_eval:Processed up to index 136 / 1858
+10:23:57 [INFO] - Processed up to index 144 / 1858
+INFO:benchmark_eval:Processed up to index 144 / 1858
+10:23:58 [INFO] - Processed up to index 152 / 1858
+INFO:benchmark_eval:Processed up to index 152 / 1858
+10:23:59 [INFO] - Processed up to index 160 / 1858
+INFO:benchmark_eval:Processed up to index 160 / 1858
+10:24:01 [INFO] - Processed up to index 168 / 1858
+INFO:benchmark_eval:Processed up to index 168 / 1858
+10:24:02 [INFO] - Processed up to index 176 / 1858
+INFO:benchmark_eval:Processed up to index 176 / 1858
+10:24:03 [INFO] - Processed up to index 184 / 1858
+INFO:benchmark_eval:Processed up to index 184 / 1858
+10:24:04 [INFO] - Processed up to index 192 / 1858
+INFO:benchmark_eval:Processed up to index 192 / 1858
+10:24:04 [INFO] - Processed up to index 200 / 1858
+INFO:benchmark_eval:Processed up to index 200 / 1858
+10:24:06 [INFO] - Processed up to index 208 / 1858
+INFO:benchmark_eval:Processed up to index 208 / 1858
+10:24:07 [INFO] - Processed up to index 216 / 1858
+INFO:benchmark_eval:Processed up to index 216 / 1858
+10:24:08 [INFO] - Processed up to index 224 / 1858
+INFO:benchmark_eval:Processed up to index 224 / 1858
+10:24:09 [INFO] - Processed up to index 232 / 1858
+INFO:benchmark_eval:Processed up to index 232 / 1858
+10:24:10 [INFO] - Processed up to index 240 / 1858
+INFO:benchmark_eval:Processed up to index 240 / 1858
+10:24:11 [INFO] - Processed up to index 248 / 1858
+INFO:benchmark_eval:Processed up to index 248 / 1858
+10:24:12 [INFO] - Processed up to index 256 / 1858
+INFO:benchmark_eval:Processed up to index 256 / 1858
+10:24:13 [INFO] - Processed up to index 264 / 1858
+INFO:benchmark_eval:Processed up to index 264 / 1858
+10:24:14 [INFO] - Processed up to index 272 / 1858
+INFO:benchmark_eval:Processed up to index 272 / 1858
+10:24:15 [INFO] - Processed up to index 280 / 1858
+INFO:benchmark_eval:Processed up to index 280 / 1858
+10:24:16 [INFO] - Processed up to index 288 / 1858
+INFO:benchmark_eval:Processed up to index 288 / 1858
+10:24:17 [INFO] - Processed up to index 296 / 1858
+INFO:benchmark_eval:Processed up to index 296 / 1858
+10:24:18 [INFO] - Processed up to index 304 / 1858
+INFO:benchmark_eval:Processed up to index 304 / 1858
+10:24:19 [INFO] - Processed up to index 312 / 1858
+INFO:benchmark_eval:Processed up to index 312 / 1858
+10:24:20 [INFO] - Processed up to index 320 / 1858
+INFO:benchmark_eval:Processed up to index 320 / 1858
+10:24:20 [INFO] - Processed up to index 328 / 1858
+INFO:benchmark_eval:Processed up to index 328 / 1858
+10:24:21 [INFO] - Processed up to index 336 / 1858
+INFO:benchmark_eval:Processed up to index 336 / 1858
+10:24:22 [INFO] - Processed up to index 344 / 1858
+INFO:benchmark_eval:Processed up to index 344 / 1858
+10:24:23 [INFO] - Processed up to index 352 / 1858
+INFO:benchmark_eval:Processed up to index 352 / 1858
+10:24:25 [INFO] - Processed up to index 360 / 1858
+INFO:benchmark_eval:Processed up to index 360 / 1858
+10:24:27 [INFO] - Processed up to index 368 / 1858
+INFO:benchmark_eval:Processed up to index 368 / 1858
+10:24:28 [INFO] - Processed up to index 376 / 1858
+INFO:benchmark_eval:Processed up to index 376 / 1858
+10:24:29 [INFO] - Processed up to index 384 / 1858
+INFO:benchmark_eval:Processed up to index 384 / 1858
+10:24:31 [INFO] - Processed up to index 392 / 1858
+INFO:benchmark_eval:Processed up to index 392 / 1858
+10:24:32 [INFO] - Processed up to index 400 / 1858
+INFO:benchmark_eval:Processed up to index 400 / 1858
+10:24:33 [INFO] - Processed up to index 408 / 1858
+INFO:benchmark_eval:Processed up to index 408 / 1858
+10:24:34 [INFO] - Processed up to index 416 / 1858
+INFO:benchmark_eval:Processed up to index 416 / 1858
+10:24:35 [INFO] - Processed up to index 424 / 1858
+INFO:benchmark_eval:Processed up to index 424 / 1858
+10:24:37 [INFO] - Processed up to index 432 / 1858
+INFO:benchmark_eval:Processed up to index 432 / 1858
+10:24:38 [INFO] - Processed up to index 440 / 1858
+INFO:benchmark_eval:Processed up to index 440 / 1858
+10:24:38 [INFO] - Processed up to index 448 / 1858
+INFO:benchmark_eval:Processed up to index 448 / 1858
+10:24:39 [INFO] - Processed up to index 456 / 1858
+INFO:benchmark_eval:Processed up to index 456 / 1858
+10:24:39 [INFO] - Processed up to index 464 / 1858
+INFO:benchmark_eval:Processed up to index 464 / 1858
+10:24:40 [INFO] - Processed up to index 472 / 1858
+INFO:benchmark_eval:Processed up to index 472 / 1858
+10:24:40 [INFO] - Processed up to index 480 / 1858
+INFO:benchmark_eval:Processed up to index 480 / 1858
+10:24:42 [INFO] - Processed up to index 488 / 1858
+INFO:benchmark_eval:Processed up to index 488 / 1858
+10:24:43 [INFO] - Processed up to index 496 / 1858
+INFO:benchmark_eval:Processed up to index 496 / 1858
+10:24:44 [INFO] - Processed up to index 504 / 1858
+INFO:benchmark_eval:Processed up to index 504 / 1858
+10:24:45 [INFO] - Processed up to index 512 / 1858
+INFO:benchmark_eval:Processed up to index 512 / 1858
+10:24:45 [INFO] - Processed up to index 520 / 1858
+INFO:benchmark_eval:Processed up to index 520 / 1858
+10:24:46 [INFO] - Processed up to index 528 / 1858
+INFO:benchmark_eval:Processed up to index 528 / 1858
+10:24:46 [INFO] - Processed up to index 536 / 1858
+INFO:benchmark_eval:Processed up to index 536 / 1858
+10:24:47 [INFO] - Processed up to index 544 / 1858
+INFO:benchmark_eval:Processed up to index 544 / 1858
+10:24:48 [INFO] - Processed up to index 552 / 1858
+INFO:benchmark_eval:Processed up to index 552 / 1858
+10:24:49 [INFO] - Processed up to index 560 / 1858
+INFO:benchmark_eval:Processed up to index 560 / 1858
+10:24:50 [INFO] - Processed up to index 568 / 1858
+INFO:benchmark_eval:Processed up to index 568 / 1858
+10:24:50 [INFO] - Processed up to index 576 / 1858
+INFO:benchmark_eval:Processed up to index 576 / 1858
+10:24:51 [INFO] - Processed up to index 584 / 1858
+INFO:benchmark_eval:Processed up to index 584 / 1858
+10:24:52 [INFO] - Processed up to index 592 / 1858
+INFO:benchmark_eval:Processed up to index 592 / 1858
+10:24:53 [INFO] - Processed up to index 600 / 1858
+INFO:benchmark_eval:Processed up to index 600 / 1858
+10:24:53 [INFO] - Processed up to index 608 / 1858
+INFO:benchmark_eval:Processed up to index 608 / 1858
+10:24:54 [INFO] - Processed up to index 616 / 1858
+INFO:benchmark_eval:Processed up to index 616 / 1858
+10:24:55 [INFO] - Processed up to index 624 / 1858
+INFO:benchmark_eval:Processed up to index 624 / 1858
+10:24:56 [INFO] - Processed up to index 632 / 1858
+INFO:benchmark_eval:Processed up to index 632 / 1858
+10:24:57 [INFO] - Processed up to index 640 / 1858
+INFO:benchmark_eval:Processed up to index 640 / 1858
+10:24:58 [INFO] - Processed up to index 648 / 1858
+INFO:benchmark_eval:Processed up to index 648 / 1858
+10:24:59 [INFO] - Processed up to index 656 / 1858
+INFO:benchmark_eval:Processed up to index 656 / 1858
+10:25:00 [INFO] - Processed up to index 664 / 1858
+INFO:benchmark_eval:Processed up to index 664 / 1858
+10:25:00 [INFO] - Processed up to index 672 / 1858
+INFO:benchmark_eval:Processed up to index 672 / 1858
+10:25:02 [INFO] - Processed up to index 680 / 1858
+INFO:benchmark_eval:Processed up to index 680 / 1858
+10:25:03 [INFO] - Processed up to index 688 / 1858
+INFO:benchmark_eval:Processed up to index 688 / 1858
+10:25:04 [INFO] - Processed up to index 696 / 1858
+INFO:benchmark_eval:Processed up to index 696 / 1858
+10:25:06 [INFO] - Processed up to index 704 / 1858
+INFO:benchmark_eval:Processed up to index 704 / 1858
+10:25:07 [INFO] - Processed up to index 712 / 1858
+INFO:benchmark_eval:Processed up to index 712 / 1858
+10:25:08 [INFO] - Processed up to index 720 / 1858
+INFO:benchmark_eval:Processed up to index 720 / 1858
+10:25:09 [INFO] - Processed up to index 728 / 1858
+INFO:benchmark_eval:Processed up to index 728 / 1858
+10:25:10 [INFO] - Processed up to index 736 / 1858
+INFO:benchmark_eval:Processed up to index 736 / 1858
+10:25:11 [INFO] - Processed up to index 744 / 1858
+INFO:benchmark_eval:Processed up to index 744 / 1858
+10:25:13 [INFO] - Processed up to index 752 / 1858
+INFO:benchmark_eval:Processed up to index 752 / 1858
+10:25:14 [INFO] - Processed up to index 760 / 1858
+INFO:benchmark_eval:Processed up to index 760 / 1858
+10:25:15 [INFO] - Processed up to index 768 / 1858
+INFO:benchmark_eval:Processed up to index 768 / 1858
+10:25:16 [INFO] - Processed up to index 776 / 1858
+INFO:benchmark_eval:Processed up to index 776 / 1858
+10:25:17 [INFO] - Processed up to index 784 / 1858
+INFO:benchmark_eval:Processed up to index 784 / 1858
+10:25:18 [INFO] - Processed up to index 792 / 1858
+INFO:benchmark_eval:Processed up to index 792 / 1858
+10:25:19 [INFO] - Processed up to index 800 / 1858
+INFO:benchmark_eval:Processed up to index 800 / 1858
+10:25:20 [INFO] - Processed up to index 808 / 1858
+INFO:benchmark_eval:Processed up to index 808 / 1858
+10:25:20 [INFO] - Processed up to index 816 / 1858
+INFO:benchmark_eval:Processed up to index 816 / 1858
+10:25:21 [INFO] - Processed up to index 824 / 1858
+INFO:benchmark_eval:Processed up to index 824 / 1858
+10:25:22 [INFO] - Processed up to index 832 / 1858
+INFO:benchmark_eval:Processed up to index 832 / 1858
+10:25:22 [INFO] - Processed up to index 840 / 1858
+INFO:benchmark_eval:Processed up to index 840 / 1858
+10:25:23 [INFO] - Processed up to index 848 / 1858
+INFO:benchmark_eval:Processed up to index 848 / 1858
+10:25:24 [INFO] - Processed up to index 856 / 1858
+INFO:benchmark_eval:Processed up to index 856 / 1858
+10:25:24 [INFO] - Processed up to index 864 / 1858
+INFO:benchmark_eval:Processed up to index 864 / 1858
+10:25:25 [INFO] - Processed up to index 872 / 1858
+INFO:benchmark_eval:Processed up to index 872 / 1858
+10:25:25 [INFO] - Processed up to index 880 / 1858
+INFO:benchmark_eval:Processed up to index 880 / 1858
+10:25:26 [INFO] - Processed up to index 888 / 1858
+INFO:benchmark_eval:Processed up to index 888 / 1858
+10:25:27 [INFO] - Processed up to index 896 / 1858
+INFO:benchmark_eval:Processed up to index 896 / 1858
+10:25:28 [INFO] - Processed up to index 904 / 1858
+INFO:benchmark_eval:Processed up to index 904 / 1858
+10:25:28 [INFO] - Processed up to index 912 / 1858
+INFO:benchmark_eval:Processed up to index 912 / 1858
+10:25:29 [INFO] - Processed up to index 920 / 1858
+INFO:benchmark_eval:Processed up to index 920 / 1858
+10:25:29 [INFO] - Processed up to index 928 / 1858
+INFO:benchmark_eval:Processed up to index 928 / 1858
+10:25:30 [INFO] - Processed up to index 936 / 1858
+INFO:benchmark_eval:Processed up to index 936 / 1858
+10:25:30 [INFO] - Processed up to index 944 / 1858
+INFO:benchmark_eval:Processed up to index 944 / 1858
+10:25:31 [INFO] - Processed up to index 952 / 1858
+INFO:benchmark_eval:Processed up to index 952 / 1858
+10:25:32 [INFO] - Processed up to index 960 / 1858
+INFO:benchmark_eval:Processed up to index 960 / 1858
+10:25:33 [INFO] - Processed up to index 968 / 1858
+INFO:benchmark_eval:Processed up to index 968 / 1858
+10:25:33 [INFO] - Processed up to index 976 / 1858
+INFO:benchmark_eval:Processed up to index 976 / 1858
+10:25:34 [INFO] - Processed up to index 984 / 1858
+INFO:benchmark_eval:Processed up to index 984 / 1858
+10:25:35 [INFO] - Processed up to index 992 / 1858
+INFO:benchmark_eval:Processed up to index 992 / 1858
+10:25:35 [INFO] - Processed up to index 1000 / 1858
+INFO:benchmark_eval:Processed up to index 1000 / 1858
+10:25:36 [INFO] - Processed up to index 1008 / 1858
+INFO:benchmark_eval:Processed up to index 1008 / 1858
+10:25:37 [INFO] - Processed up to index 1016 / 1858
+INFO:benchmark_eval:Processed up to index 1016 / 1858
+10:25:38 [INFO] - Processed up to index 1024 / 1858
+INFO:benchmark_eval:Processed up to index 1024 / 1858
+10:25:38 [INFO] - Processed up to index 1032 / 1858
+INFO:benchmark_eval:Processed up to index 1032 / 1858
+10:25:39 [INFO] - Processed up to index 1040 / 1858
+INFO:benchmark_eval:Processed up to index 1040 / 1858
+10:25:39 [INFO] - Processed up to index 1048 / 1858
+INFO:benchmark_eval:Processed up to index 1048 / 1858
+10:25:40 [INFO] - Processed up to index 1056 / 1858
+INFO:benchmark_eval:Processed up to index 1056 / 1858
+10:25:41 [INFO] - Processed up to index 1064 / 1858
+INFO:benchmark_eval:Processed up to index 1064 / 1858
+10:25:41 [INFO] - Processed up to index 1072 / 1858
+INFO:benchmark_eval:Processed up to index 1072 / 1858
+10:25:42 [INFO] - Processed up to index 1080 / 1858
+INFO:benchmark_eval:Processed up to index 1080 / 1858
+10:25:43 [INFO] - Processed up to index 1088 / 1858
+INFO:benchmark_eval:Processed up to index 1088 / 1858
+10:25:43 [INFO] - Processed up to index 1096 / 1858
+INFO:benchmark_eval:Processed up to index 1096 / 1858
+10:25:44 [INFO] - Processed up to index 1104 / 1858
+INFO:benchmark_eval:Processed up to index 1104 / 1858
+10:25:45 [INFO] - Processed up to index 1112 / 1858
+INFO:benchmark_eval:Processed up to index 1112 / 1858
+10:25:45 [INFO] - Processed up to index 1120 / 1858
+INFO:benchmark_eval:Processed up to index 1120 / 1858
+10:25:46 [INFO] - Processed up to index 1128 / 1858
+INFO:benchmark_eval:Processed up to index 1128 / 1858
+10:25:46 [INFO] - Processed up to index 1136 / 1858
+INFO:benchmark_eval:Processed up to index 1136 / 1858
+10:25:47 [INFO] - Processed up to index 1144 / 1858
+INFO:benchmark_eval:Processed up to index 1144 / 1858
+10:25:48 [INFO] - Processed up to index 1152 / 1858
+INFO:benchmark_eval:Processed up to index 1152 / 1858
+10:25:48 [INFO] - Processed up to index 1160 / 1858
+INFO:benchmark_eval:Processed up to index 1160 / 1858
+10:25:49 [INFO] - Processed up to index 1168 / 1858
+INFO:benchmark_eval:Processed up to index 1168 / 1858
+10:25:50 [INFO] - Processed up to index 1176 / 1858
+INFO:benchmark_eval:Processed up to index 1176 / 1858
+10:25:50 [INFO] - Processed up to index 1184 / 1858
+INFO:benchmark_eval:Processed up to index 1184 / 1858
+10:25:51 [INFO] - Processed up to index 1192 / 1858
+INFO:benchmark_eval:Processed up to index 1192 / 1858
+10:25:51 [INFO] - Processed up to index 1200 / 1858
+INFO:benchmark_eval:Processed up to index 1200 / 1858
+10:25:52 [INFO] - Processed up to index 1208 / 1858
+INFO:benchmark_eval:Processed up to index 1208 / 1858
+10:25:52 [INFO] - Processed up to index 1216 / 1858
+INFO:benchmark_eval:Processed up to index 1216 / 1858
+10:25:53 [INFO] - Processed up to index 1224 / 1858
+INFO:benchmark_eval:Processed up to index 1224 / 1858
+10:25:54 [INFO] - Processed up to index 1232 / 1858
+INFO:benchmark_eval:Processed up to index 1232 / 1858
+10:25:55 [INFO] - Processed up to index 1240 / 1858
+INFO:benchmark_eval:Processed up to index 1240 / 1858
+10:25:55 [INFO] - Processed up to index 1248 / 1858
+INFO:benchmark_eval:Processed up to index 1248 / 1858
+10:25:56 [INFO] - Processed up to index 1256 / 1858
+INFO:benchmark_eval:Processed up to index 1256 / 1858
+10:25:56 [INFO] - Processed up to index 1264 / 1858
+INFO:benchmark_eval:Processed up to index 1264 / 1858
+10:25:57 [INFO] - Processed up to index 1272 / 1858
+INFO:benchmark_eval:Processed up to index 1272 / 1858
+10:25:58 [INFO] - Processed up to index 1280 / 1858
+INFO:benchmark_eval:Processed up to index 1280 / 1858
+10:25:58 [INFO] - Processed up to index 1288 / 1858
+INFO:benchmark_eval:Processed up to index 1288 / 1858
+10:25:59 [INFO] - Processed up to index 1296 / 1858
+INFO:benchmark_eval:Processed up to index 1296 / 1858
+10:26:00 [INFO] - Processed up to index 1304 / 1858
+INFO:benchmark_eval:Processed up to index 1304 / 1858
+10:26:02 [INFO] - Processed up to index 1312 / 1858
+INFO:benchmark_eval:Processed up to index 1312 / 1858
+10:26:03 [INFO] - Processed up to index 1320 / 1858
+INFO:benchmark_eval:Processed up to index 1320 / 1858
+10:26:04 [INFO] - Processed up to index 1328 / 1858
+INFO:benchmark_eval:Processed up to index 1328 / 1858
+10:26:05 [INFO] - Processed up to index 1336 / 1858
+INFO:benchmark_eval:Processed up to index 1336 / 1858
+10:26:06 [INFO] - Processed up to index 1344 / 1858
+INFO:benchmark_eval:Processed up to index 1344 / 1858
+10:26:08 [INFO] - Processed up to index 1352 / 1858
+INFO:benchmark_eval:Processed up to index 1352 / 1858
+10:26:08 [INFO] - Processed up to index 1360 / 1858
+INFO:benchmark_eval:Processed up to index 1360 / 1858
+10:26:09 [INFO] - Processed up to index 1368 / 1858
+INFO:benchmark_eval:Processed up to index 1368 / 1858
+10:26:09 [INFO] - Processed up to index 1376 / 1858
+INFO:benchmark_eval:Processed up to index 1376 / 1858
+10:26:11 [INFO] - Processed up to index 1384 / 1858
+INFO:benchmark_eval:Processed up to index 1384 / 1858
+10:26:11 [INFO] - Processed up to index 1392 / 1858
+INFO:benchmark_eval:Processed up to index 1392 / 1858
+10:26:12 [INFO] - Processed up to index 1400 / 1858
+INFO:benchmark_eval:Processed up to index 1400 / 1858
+10:26:13 [INFO] - Processed up to index 1408 / 1858
+INFO:benchmark_eval:Processed up to index 1408 / 1858
+10:26:14 [INFO] - Processed up to index 1416 / 1858
+INFO:benchmark_eval:Processed up to index 1416 / 1858
+10:26:15 [INFO] - Processed up to index 1424 / 1858
+INFO:benchmark_eval:Processed up to index 1424 / 1858
+10:26:15 [INFO] - Processed up to index 1432 / 1858
+INFO:benchmark_eval:Processed up to index 1432 / 1858
+10:26:16 [INFO] - Processed up to index 1440 / 1858
+INFO:benchmark_eval:Processed up to index 1440 / 1858
+10:26:16 [INFO] - Processed up to index 1448 / 1858
+INFO:benchmark_eval:Processed up to index 1448 / 1858
+10:26:18 [INFO] - Processed up to index 1456 / 1858
+INFO:benchmark_eval:Processed up to index 1456 / 1858
+10:26:18 [INFO] - Processed up to index 1464 / 1858
+INFO:benchmark_eval:Processed up to index 1464 / 1858
+10:26:19 [INFO] - Processed up to index 1472 / 1858
+INFO:benchmark_eval:Processed up to index 1472 / 1858
+10:26:20 [INFO] - Processed up to index 1480 / 1858
+INFO:benchmark_eval:Processed up to index 1480 / 1858
+10:26:21 [INFO] - Processed up to index 1488 / 1858
+INFO:benchmark_eval:Processed up to index 1488 / 1858
+10:26:22 [INFO] - Processed up to index 1496 / 1858
+INFO:benchmark_eval:Processed up to index 1496 / 1858
+10:26:23 [INFO] - Processed up to index 1504 / 1858
+INFO:benchmark_eval:Processed up to index 1504 / 1858
+10:26:24 [INFO] - Processed up to index 1512 / 1858
+INFO:benchmark_eval:Processed up to index 1512 / 1858
+10:26:26 [INFO] - Processed up to index 1520 / 1858
+INFO:benchmark_eval:Processed up to index 1520 / 1858
+10:26:27 [INFO] - Processed up to index 1528 / 1858
+INFO:benchmark_eval:Processed up to index 1528 / 1858
+10:26:27 [INFO] - Processed up to index 1536 / 1858
+INFO:benchmark_eval:Processed up to index 1536 / 1858
+10:26:28 [INFO] - Processed up to index 1544 / 1858
+INFO:benchmark_eval:Processed up to index 1544 / 1858
+10:26:28 [INFO] - Processed up to index 1552 / 1858
+INFO:benchmark_eval:Processed up to index 1552 / 1858
+10:26:29 [INFO] - Processed up to index 1560 / 1858
+INFO:benchmark_eval:Processed up to index 1560 / 1858
+10:26:30 [INFO] - Processed up to index 1568 / 1858
+INFO:benchmark_eval:Processed up to index 1568 / 1858
+10:26:31 [INFO] - Processed up to index 1576 / 1858
+INFO:benchmark_eval:Processed up to index 1576 / 1858
+10:26:32 [INFO] - Processed up to index 1584 / 1858
+INFO:benchmark_eval:Processed up to index 1584 / 1858
+10:26:33 [INFO] - Processed up to index 1592 / 1858
+INFO:benchmark_eval:Processed up to index 1592 / 1858
+10:26:35 [INFO] - Processed up to index 1600 / 1858
+INFO:benchmark_eval:Processed up to index 1600 / 1858
+10:26:35 [INFO] - Processed up to index 1608 / 1858
+INFO:benchmark_eval:Processed up to index 1608 / 1858
+10:26:36 [INFO] - Processed up to index 1616 / 1858
+INFO:benchmark_eval:Processed up to index 1616 / 1858
+10:26:36 [INFO] - Processed up to index 1624 / 1858
+INFO:benchmark_eval:Processed up to index 1624 / 1858
+10:26:37 [INFO] - Processed up to index 1632 / 1858
+INFO:benchmark_eval:Processed up to index 1632 / 1858
+10:26:37 [INFO] - Processed up to index 1640 / 1858
+INFO:benchmark_eval:Processed up to index 1640 / 1858
+10:26:38 [INFO] - Processed up to index 1648 / 1858
+INFO:benchmark_eval:Processed up to index 1648 / 1858
+10:26:39 [INFO] - Processed up to index 1656 / 1858
+INFO:benchmark_eval:Processed up to index 1656 / 1858
+10:26:40 [INFO] - Processed up to index 1664 / 1858
+INFO:benchmark_eval:Processed up to index 1664 / 1858
+10:26:41 [INFO] - Processed up to index 1672 / 1858
+INFO:benchmark_eval:Processed up to index 1672 / 1858
+10:26:42 [INFO] - Processed up to index 1680 / 1858
+INFO:benchmark_eval:Processed up to index 1680 / 1858
+10:26:42 [INFO] - Processed up to index 1688 / 1858
+INFO:benchmark_eval:Processed up to index 1688 / 1858
+10:26:43 [INFO] - Processed up to index 1696 / 1858
+INFO:benchmark_eval:Processed up to index 1696 / 1858
+10:26:44 [INFO] - Processed up to index 1704 / 1858
+INFO:benchmark_eval:Processed up to index 1704 / 1858
+10:26:44 [INFO] - Processed up to index 1712 / 1858
+INFO:benchmark_eval:Processed up to index 1712 / 1858
+10:26:45 [INFO] - Processed up to index 1720 / 1858
+INFO:benchmark_eval:Processed up to index 1720 / 1858
+10:26:46 [INFO] - Processed up to index 1728 / 1858
+INFO:benchmark_eval:Processed up to index 1728 / 1858
+10:26:47 [INFO] - Processed up to index 1736 / 1858
+INFO:benchmark_eval:Processed up to index 1736 / 1858
+10:26:48 [INFO] - Processed up to index 1744 / 1858
+INFO:benchmark_eval:Processed up to index 1744 / 1858
+10:26:48 [INFO] - Processed up to index 1752 / 1858
+INFO:benchmark_eval:Processed up to index 1752 / 1858
+10:26:49 [INFO] - Processed up to index 1760 / 1858
+INFO:benchmark_eval:Processed up to index 1760 / 1858
+10:26:51 [INFO] - Processed up to index 1768 / 1858
+INFO:benchmark_eval:Processed up to index 1768 / 1858
+10:26:51 [INFO] - Processed up to index 1776 / 1858
+INFO:benchmark_eval:Processed up to index 1776 / 1858
+10:26:52 [INFO] - Processed up to index 1784 / 1858
+INFO:benchmark_eval:Processed up to index 1784 / 1858
+10:26:53 [INFO] - Processed up to index 1792 / 1858
+INFO:benchmark_eval:Processed up to index 1792 / 1858
+10:26:54 [INFO] - Processed up to index 1800 / 1858
+INFO:benchmark_eval:Processed up to index 1800 / 1858
+10:26:55 [INFO] - Processed up to index 1808 / 1858
+INFO:benchmark_eval:Processed up to index 1808 / 1858
+10:26:55 [INFO] - Processed up to index 1816 / 1858
+INFO:benchmark_eval:Processed up to index 1816 / 1858
+10:26:56 [INFO] - Processed up to index 1824 / 1858
+INFO:benchmark_eval:Processed up to index 1824 / 1858
+10:26:57 [INFO] - Processed up to index 1832 / 1858
+INFO:benchmark_eval:Processed up to index 1832 / 1858
+10:26:58 [INFO] - Processed up to index 1840 / 1858
+INFO:benchmark_eval:Processed up to index 1840 / 1858
+10:26:59 [INFO] - Processed up to index 1848 / 1858
+INFO:benchmark_eval:Processed up to index 1848 / 1858
+10:26:59 [INFO] - Processed up to index 1856 / 1858
+INFO:benchmark_eval:Processed up to index 1856 / 1858
+10:27:00 [INFO] - Processed up to index 1858 / 1858
+INFO:benchmark_eval:Processed up to index 1858 / 1858
+Downloading builder script: 0.00B [00:00, ?B/s]Downloading builder script: 5.13kB [00:00, 6.44MB/s]
+Downloading builder script: 0.00B [00:00, ?B/s]Downloading builder script: 7.95kB [00:00, 18.2kB/s]
+/root/miniconda3/lib/python3.12/site-packages/nltk/translate/bleu_score.py:577: UserWarning: 
+The hypothesis contains 0 counts of 3-gram overlaps.
+Therefore the BLEU score evaluates to 0, independently of
+how many N-gram overlaps of lower order it contains.
+Consider using lower n-gram order or use SmoothingFunction()
+  warnings.warn(_msg)
+/root/miniconda3/lib/python3.12/site-packages/nltk/translate/bleu_score.py:577: UserWarning: 
+The hypothesis contains 0 counts of 4-gram overlaps.
+Therefore the BLEU score evaluates to 0, independently of
+how many N-gram overlaps of lower order it contains.
+Consider using lower n-gram order or use SmoothingFunction()
+  warnings.warn(_msg)
+/root/miniconda3/lib/python3.12/site-packages/nltk/translate/bleu_score.py:577: UserWarning: 
+The hypothesis contains 0 counts of 2-gram overlaps.
+Therefore the BLEU score evaluates to 0, independently of
+how many N-gram overlaps of lower order it contains.
+Consider using lower n-gram order or use SmoothingFunction()
+  warnings.warn(_msg)
+10:28:58 [INFO] - Finished evaluation. Metrics saved to /root/autodl-tmp/benchmark/benchmark_eval/test_outputs/eval_glim/metrics.json
+INFO:benchmark_eval:Finished evaluation. Metrics saved to /root/autodl-tmp/benchmark/benchmark_eval/test_outputs/eval_glim/metrics.json
+10:28:58 [INFO] - Overall Metrics: {'bleu1': 0.04287275346896048, 'bleu2': 0.011306583038359715, 'bleu3': 0.002844012591791023, 'bleu4': 0.0009005993871324723, 'rouge1': 0.0, 'rouge2': 0.0, 'rougeL': 0.0, 'wer': 1.0373886414253897, 'bertscore': 0.0}
+INFO:benchmark_eval:Overall Metrics: {'bleu1': 0.04287275346896048, 'bleu2': 0.011306583038359715, 'bleu3': 0.002844012591791023, 'bleu4': 0.0009005993871324723, 'rouge1': 0.0, 'rouge2': 0.0, 'rougeL': 0.0, 'wer': 1.0373886414253897, 'bertscore': 0.0}
+10:28:58 [INFO] - Grouped Metrics - By Task: ['task1-SR', 'task2-NR', 'task3-TSR', 'task2-NR-2.0']
+INFO:benchmark_eval:Grouped Metrics - By Task: ['task1-SR', 'task2-NR', 'task3-TSR', 'task2-NR-2.0']
+10:28:58 [INFO] - Grouped Metrics - By Subject: ['ZAB', 'ZDM', 'ZDN', 'ZGW', 'ZJM', 'ZJN', 'ZJS', 'ZKB', 'ZKH', 'ZKW', 'ZMG', 'ZPH', 'YDR', 'YFR', 'YAC', 'YAG', 'YAK', 'YDG', 'YFS', 'YIS', 'YHS', 'YLS', 'YMD', 'YMS', 'YRH', 'YRK', 'YRP', 'YSD', 'YSL', 'YTL']
+INFO:benchmark_eval:Grouped Metrics - By Subject: ['ZAB', 'ZDM', 'ZDN', 'ZGW', 'ZJM', 'ZJN', 'ZJS', 'ZKB', 'ZKH', 'ZKW', 'ZMG', 'ZPH', 'YDR', 'YFR', 'YAC', 'YAG', 'YAK', 'YDG', 'YFS', 'YIS', 'YHS', 'YLS', 'YMD', 'YMS', 'YRH', 'YRK', 'YRP', 'YSD', 'YSL', 'YTL']
+==============================================
+Evaluation completed!
+Results saved to: /root/autodl-tmp/benchmark/benchmark_eval/test_outputs/eval_glim
+==============================================

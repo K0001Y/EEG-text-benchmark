@@ -137,17 +137,20 @@ def main() -> None:
         try:
             # Subset 返回的 idx 是原始数据集的索引
             idx_list: List[int] = batch["idx"].tolist()
+            # 默认使用 eeg 字段，wrapper 可根据需要选择其他字段
             eeg = batch["eeg"]
             mask = batch["mask"]
 
             # 为了便于 Dummy 模型使用 input_text，这里把 input_text 放进 meta
+            # 同时传递整个 batch，让 wrapper 可以选择需要的数据格式
             meta_batch: List[Dict[str, Any]] = []
             for i in range(len(idx_list)):
                 meta = dict(batch["meta"][i])
                 meta["input_text"] = batch["input_text"][i]
                 meta_batch.append(meta)
 
-            preds = model.generate_text(eeg, mask, meta_batch)
+            # 调用模型生成，传递整个 batch 以便 wrapper 选择数据格式
+            preds = model.generate_text(eeg, mask, meta_batch, batch=batch)
 
             records: List[Dict[str, Any]] = []
             for local_i, idx in enumerate(idx_list):

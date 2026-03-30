@@ -63,11 +63,17 @@ class EEGToTextWrapper(BenchmarkModelWrapper):
         # 从 checkpoint 加载模型参数
         state_dict = torch.load(checkpoint_path, map_location=self.device)
 
-        # 根据 model_type 初始化相应的模型
+        # 根据 model_type 初始化相应的模型（使用本地缓存，离线模式）
         if self.model_type == "bart":
             from transformers import BartForConditionalGeneration
-            pretrained = BartForConditionalGeneration.from_pretrained("facebook/bart-large")
-            self.tokenizer = BartTokenizer.from_pretrained("facebook/bart-large")
+            pretrained = BartForConditionalGeneration.from_pretrained(
+                "facebook/bart-large",
+                local_files_only=True
+            )
+            self.tokenizer = BartTokenizer.from_pretrained(
+                "facebook/bart-large",
+                local_files_only=True
+            )
             
             # 动态导入 EEG-To-Text 的 BrainTranslator
             try:
@@ -88,8 +94,14 @@ class EEGToTextWrapper(BenchmarkModelWrapper):
 
         elif self.model_type == "t5":
             from transformers import T5ForConditionalGeneration
-            pretrained = T5ForConditionalGeneration.from_pretrained("t5-large")
-            self.tokenizer = T5Tokenizer.from_pretrained("t5-large")
+            pretrained = T5ForConditionalGeneration.from_pretrained(
+                "t5-large",
+                local_files_only=True
+            )
+            self.tokenizer = T5Tokenizer.from_pretrained(
+                "t5-large",
+                local_files_only=True
+            )
             
             try:
                 models_dir = os.path.join(os.path.dirname(__file__), "..", "..", "models", "EEG-To-Text-main")
@@ -138,40 +150,12 @@ class EEGToTextWrapper(BenchmarkModelWrapper):
         - input_mask: (B, seq_len)，0/1 mask
         - input_mask_invert: (B, seq_len)，反转的 mask（用于 transformer padding）
         
-        注意：EEG-To-Text 训练时对每个词单独做 1D 归一化，
-        但统一数据集做的是 2D 归一化。需要在此处转换为 1D 归一化。
+        注意：统一数据集已经提供了 eeg_normalized_1d（逐词 1D 归一化），
+        直接使用即可，无需再次归一化。
         """
-        # 统一输入已经是 (B, L_max, C=840)
-        # EEG-To-Text 需要对每个词单独做 1D 归一化，与训练时一致
-        
-        def normalize_1d_per_word(eeg_tensor: torch.Tensor, mask_tensor: torch.Tensor) -> torch.Tensor:
-            """对每个词的 EEG 向量单独做 z-score 归一化。
-            
-            Args:
-                eeg_tensor: (B, L, C) EEG 序列
-                mask_tensor: (B, L) 1 表示有效位置
-            Returns:
-                归一化后的 EEG 张量
-            """
-            B, L, C = eeg_tensor.shape
-            result = torch.zeros_like(eeg_tensor)
-            
-            for b in range(B):
-                for l in range(L):
-                    if mask_tensor[b, l] > 0:  # 只处理有效位置
-                        vec = eeg_tensor[b, l, :]  # (C,)
-                        mean = vec.mean()
-                        std = vec.std()
-                        if std > 1e-8:
-                            result[b, l, :] = (vec - mean) / std
-                        # 否则保持零向量
-            
-            return result
-        
-        
-        # 对每个词单独做 1D 归一化，与 EEG-To-Text 训练时一致
-        input_embeddings = normalize_1d_per_word(eeg, mask)
-        input_embeddings = input_embeddings.to(self.device)
+        # 统一数据集的 eeg 字段现在默认是 eeg_normalized_1d（逐词 1D 归一化）
+        # 直接使用，与 EEG-To-Text 训练时的归一化方式一致
+        input_embeddings = eeg.to(self.device)
         
         input_mask = mask.to(self.device)  # (B, L_max)
         input_mask_invert = (1 - input_mask).bool()  # 反转 mask
@@ -186,14 +170,23 @@ class EEGToTextWrapper(BenchmarkModelWrapper):
         self,
         eeg: torch.Tensor,
         mask: torch.Tensor,
-        meta: List[Dict[str, Any]] | None = None
+        meta: List[Dict[str, Any]] | None = None,
+        batch: Dict[str, Any] | None = None,
     ) -> List[str]:
         """
         从 EEG 生成文本（自回归，禁用 teacher forcing）。
         
+        Args:
+            eeg: 默认 EEG（已经是 eeg_normalized_1d）
+            mask: 词级 mask
+            meta: 元信息
+            batch: 完整 batch（可包含多种 EEG 格式）
+        
         Returns:
             生成的文本列表，长度为 batch_size。
         """
+        # EEG-To-Text 使用 eeg_normalized_1d（逐词 1D 归一化）
+        # 默认 eeg 字段就是 eeg_normalized_1d，无需额外处理
         with torch.no_grad():
             encoded = self.encode_eeg(eeg, mask, meta)
             
@@ -201,23 +194,18 @@ class EEGToTextWrapper(BenchmarkModelWrapper):
             input_mask = encoded["input_mask"]
             input_mask_invert = encoded["input_mask_invert"]
 
-            # 使用 GenerationConfig 避免参数冲突
-            generation_config = GenerationConfig(
-                max_new_tokens=self.max_new_tokens,
-                num_beams=self.num_beams,
-                early_stopping=True,
-                do_sample=False,  # greedy decoding
-                pad_token_id=self.tokenizer.pad_token_id,
-                eos_token_id=self.tokenizer.eos_token_id,
-            )
-            
-            # 调用模型的 generate 方法（纯自回归）
+            # 使用与原始 eval_decoding.py 完全一致的生成参数：
+            # max_length=56, num_beams=5, do_sample=True, repetition_penalty=5.0, no_repeat_ngram_size=2
             output = self.model.generate(
                 input_embeddings_batch=input_embeddings,
                 input_masks_batch=input_mask,
                 input_masks_invert=input_mask_invert,
                 target_ids_batch_converted=None,
-                generation_config=generation_config,
+                max_length=56,
+                num_beams=self.num_beams if self.num_beams > 1 else 5,
+                do_sample=True,
+                repetition_penalty=5.0,
+                no_repeat_ngram_size=2,
             )
 
             # 处理输出：可能是 GreedySearchDecoderOnlyOutput 对象或 tensor

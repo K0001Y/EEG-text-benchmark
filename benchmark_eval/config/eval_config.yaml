@@ -98,7 +98,7 @@ models:
     input_eeg_len: 1280
     hidden_eeg_len: 96
     input_dim: 128
-    hidden_dim: 128
+    hidden_dim: 256
     embed_dim: 1024
 
 # 对照实验配置

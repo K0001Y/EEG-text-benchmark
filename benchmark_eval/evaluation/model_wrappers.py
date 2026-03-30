@@ -36,12 +36,29 @@ class BenchmarkModelWrapper(ABC):
         """
 
     @abstractmethod
-    def generate_text(self, eeg: torch.Tensor, mask: torch.Tensor, meta: List[Dict[str, Any]] | None = None) -> List[str]:
+    def generate_text(
+        self,
+        eeg: torch.Tensor,
+        mask: torch.Tensor,
+        meta: List[Dict[str, Any]] | None = None,
+        batch: Dict[str, Any] | None = None,
+    ) -> List[str]:
         """核心接口：从 EEG 序列生成文本。
 
         要求：
         - 内部必须使用自回归生成（如 HuggingFace `generate`），禁止 teacher forcing；
         - 返回长度为 batch_size 的字符串列表，每个元素对应一条样本。
+
+        Args:
+            eeg: (B, L_max, C) 默认的 EEG 张量
+            mask: (B, L_max) 默认的 mask
+            meta: 每条样本的元信息列表
+            batch: 完整的 batch 字典，包含多个 EEG 格式：
+                   - eeg: 默认 EEG（eeg_normalized_1d）
+                   - eeg_raw: 原始词级 EEG（未归一化）
+                   - eeg_normalized_1d: 逐词 1D 归一化（EEG-To-Text 使用）
+                   - eeg_normalized_2d: 词+句 2D 归一化（CET-MAE 使用）
+                   - mask_with_sent: 包含句级的 mask
         """
 
 
@@ -59,7 +76,13 @@ class DummyEchoWrapper(BenchmarkModelWrapper):
         logger.debug("DummyEchoWrapper.encode_eeg called, but no-op.")
         return None
 
-    def generate_text(self, eeg: torch.Tensor, mask: torch.Tensor, meta: List[Dict[str, Any]] | None = None) -> List[str]:
+    def generate_text(
+        self,
+        eeg: torch.Tensor,
+        mask: torch.Tensor,
+        meta: List[Dict[str, Any]] | None = None,
+        batch: Dict[str, Any] | None = None,
+    ) -> List[str]:
         batch_size = eeg.size(0)
         results: List[str] = []
         meta = meta or [{} for _ in range(batch_size)]

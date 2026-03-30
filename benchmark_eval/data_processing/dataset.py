@@ -37,12 +37,17 @@ class UnifiedSample:
     """Single unified benchmark sample.
 
     Expected fields in the underlying dict:
-    - eeg:      list or numpy array with shape (L_max, C)
-    - mask:     list or numpy/bool array with shape (L_max,)
+    - eeg:      default EEG array (1D normalized), shape (L_max, C)
+    - eeg_raw:  raw word-level EEG (unnormalized), shape (L_max, C)
+    - eeg_normalized_1d: per-word 1D normalized EEG (for EEG-To-Text), shape (L_max, C)
+    - eeg_normalized_2d: 2D normalized EEG with sentence-level (for CET-MAE), shape (L_max, C)
+    - sent_eeg_raw: sentence-level EEG (separate), shape (C,)
+    - mask:     word-level mask, shape (L_max,)
+    - mask_with_sent: mask including sentence-level EEG
     - input_text:    original sentence shown to the subject
     - reference_text: target text used for metrics
     - phase:    "train" / "val" / "test" (optional if you only use one split)
-    - meta:     arbitrary metadata dict (task, subject, text_uid, etc.)
+    - meta:     arbitrary metadata dict (task, subject, text_uid, seq_len, etc.)
     """
 
     eeg: Any
@@ -51,6 +56,12 @@ class UnifiedSample:
     reference_text: str
     phase: Optional[str] = None
     meta: Optional[Dict[str, Any]] = None
+    # Additional EEG formats
+    eeg_raw: Optional[Any] = None
+    eeg_normalized_1d: Optional[Any] = None
+    eeg_normalized_2d: Optional[Any] = None
+    sent_eeg_raw: Optional[Any] = None
+    mask_with_sent: Optional[Any] = None
 
 
 class UnifiedDataset(Dataset):
@@ -76,6 +87,12 @@ class UnifiedDataset(Dataset):
                 reference_text=item.get("reference_text", item.get("target_text", item.get("text", ""))),
                 phase=item.get("phase"),
                 meta=item.get("meta", {}),
+                # Additional EEG formats
+                eeg_raw=item.get("eeg_raw"),
+                eeg_normalized_1d=item.get("eeg_normalized_1d"),
+                eeg_normalized_2d=item.get("eeg_normalized_2d"),
+                sent_eeg_raw=item.get("sent_eeg_raw"),
+                mask_with_sent=item.get("mask_with_sent"),
             )
             if phase is None or sample.phase is None or sample.phase == phase:
                 self.samples.append(sample)
@@ -91,8 +108,8 @@ class UnifiedDataset(Dataset):
 
         eeg = torch.as_tensor(sample.eeg, dtype=torch.float32)
         mask = torch.as_tensor(sample.mask, dtype=torch.float32)
-        # input_text + reference_text 保留为字符串，meta 保留为原始字典
-        return {
+        
+        result = {
             "idx": idx,
             "eeg": eeg,
             "mask": mask,
@@ -100,3 +117,17 @@ class UnifiedDataset(Dataset):
             "reference_text": sample.reference_text,
             "meta": sample.meta or {},
         }
+        
+        # Add optional EEG formats if available
+        if sample.eeg_raw is not None:
+            result["eeg_raw"] = torch.as_tensor(sample.eeg_raw, dtype=torch.float32)
+        if sample.eeg_normalized_1d is not None:
+            result["eeg_normalized_1d"] = torch.as_tensor(sample.eeg_normalized_1d, dtype=torch.float32)
+        if sample.eeg_normalized_2d is not None:
+            result["eeg_normalized_2d"] = torch.as_tensor(sample.eeg_normalized_2d, dtype=torch.float32)
+        if sample.sent_eeg_raw is not None:
+            result["sent_eeg_raw"] = torch.as_tensor(sample.sent_eeg_raw, dtype=torch.float32)
+        if sample.mask_with_sent is not None:
+            result["mask_with_sent"] = torch.as_tensor(sample.mask_with_sent, dtype=torch.float32)
+        
+        return result
