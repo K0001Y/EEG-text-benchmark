@@ -42,6 +42,55 @@ def normalize_2d(input_matrix: torch.Tensor) -> torch.Tensor:
     return (input_matrix - mean) / std
 
 
+def build_eeg2text_format(raw_data: np.ndarray, target_len: int = 24000) -> np.ndarray:
+    """将原始 EEG 时序数据转换为 EEG2Text 格式。
+    
+    Args:
+        raw_data: 原始 EEG 数据，shape 为 (105, T) 或 (T, 105)
+        target_len: 目标时间长度，默认 24000
+        
+    Returns:
+        转换后的 EEG 数据，shape 为 (target_len, 105)
+    """
+    # 确保数据是 numpy 数组
+    if hasattr(raw_data, 'numpy'):
+        raw_data = raw_data.numpy()
+    
+    raw_data = np.asarray(raw_data, dtype=np.float32)
+    
+    # 判断输入 shape，如果是 (105, T) 则转置为 (T, 105)
+    if raw_data.shape[0] == 105 and len(raw_data.shape) == 2:
+        raw_data = raw_data.T  # 现在 shape 为 (T, 105)
+    
+    actual_len = raw_data.shape[0]
+    
+    # 截断或填充到 target_len
+    if actual_len >= target_len:
+        result = raw_data[:target_len, :]
+    else:
+        # 填充零
+        pad_len = target_len - actual_len
+        pad = np.zeros((pad_len, 105), dtype=np.float32)
+        result = np.concatenate([raw_data, pad], axis=0)
+    
+    return result
+
+
+def build_eeg2text_mask(actual_len: int, target_len: int = 24000) -> List[float]:
+    """构建 EEG2Text 的 mask。
+    
+    Args:
+        actual_len: 实际时间长度
+        target_len: 目标时间长度
+        
+    Returns:
+        mask 列表，长度为 target_len，有效位置为 1.0，padding 为 0.0
+    """
+    effective_len = min(actual_len, target_len)
+    mask = [1.0] * effective_len + [0.0] * (target_len - effective_len)
+    return mask
+
+
 def get_word_embedding_eeg_tensor(word_obj: Dict[str, Any], eeg_type: str, bands: List[str], dim: int) -> Dict[str, torch.Tensor] | None:
     """从 EEG-To-Text 的 sent_obj.word 中构造单词级 EEG 向量。
 
@@ -223,6 +272,30 @@ def build_samples_for_task(
                     "seq_len_with_sent": min(seq_len_with_sent, max_len),  # 包含句级的长度
                 },
             }
+            
+            # ===== 7. EEG2Text 格式：原始时序数据 =====
+            # 从 sent_obj 中获取 rawData（如果存在）
+            raw_data = None
+            if "rawData" in sent_obj:
+                raw_data = sent_obj["rawData"]
+            elif "sentence_level_EEG" in sent_obj and "rawData" in sent_obj["sentence_level_EEG"]:
+                raw_data = sent_obj["sentence_level_EEG"]["rawData"]
+            
+            if raw_data is not None:
+                try:
+                    record["eeg_eeg2text"] = build_eeg2text_format(raw_data, target_len=24000)
+                    # 获取原始时间长度
+                    if hasattr(raw_data, 'shape'):
+                        if len(raw_data.shape) == 2:
+                            actual_len = raw_data.shape[1] if raw_data.shape[0] == 105 else raw_data.shape[0]
+                        else:
+                            actual_len = raw_data.shape[0]
+                    else:
+                        actual_len = 24000
+                    record["mask_eeg2text"] = build_eeg2text_mask(actual_len, target_len=24000)
+                except Exception as e:
+                    if logger:
+                        logger.warning("Failed to build EEG2Text format for %s sent %d: %s", subject, sent_idx, e)
             subject_records.append(record)
 
         samples_by_subject[subject] = subject_records
@@ -342,6 +415,9 @@ def load_dataset_from_mat_v1(zuco_root: str, task_name: str, logger=None) -> Dic
                     "mean_g1": sent.mean_g1,
                     "mean_g2": sent.mean_g2,
                 }
+                # 保留原始时序数据（用于 EEG2Text）
+                if hasattr(sent, 'rawData'):
+                    sent_obj["rawData"] = sent.rawData
 
                 sent_obj["word"] = []
                 word_tokens_has_fixation: List[str] = []

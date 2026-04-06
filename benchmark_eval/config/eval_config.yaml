@@ -105,9 +105,17 @@ models:
 control_experiments:
   # 是否运行噪声 EEG 实验
   run_noise_experiment: false
-  # 噪声种子
+  
+  # 噪声类型: "gaussian" | "uniform"
+  noise_type: "gaussian"
+  
+  # 噪声随机种子（保证可复现）
   noise_seed: 42
+  
+  # 高斯噪声参数
+  noise_mean: 0.0
+  noise_std: 1.0
+  
   # 是否运行 EEG-文本配对打乱实验
   run_shuffle_experiment: false
-  # 打乱种子
   shuffle_seed: 42
