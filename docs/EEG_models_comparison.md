@@ -145,3 +145,42 @@ GLIM 仓库对应论文“Learning Interpretable Representations Leads to Semant
    - `GLIMSampler`：
      - 继承 `DistributedSampler`，但在采样时按 `text uid` 保证同一个 batch 内的样本对应不同的文本；
      - 支持多卡训练时自动估算每卡的 batch 数、补齐不足部分，保持各 GPU 上 batch 数一致，方便做 EEG–文本对比学习和检索任务。
+
+---
+
+### 五、各模型在统一 Benchmark 中的 EEG 输入对应关系（v2）
+
+本节说明各模型 wrapper 从统一数据集 v2 字段中读取的具体字段，以及必要的格式适配。
+
+| 模型 | 读取字段（v2） | 实际传入模型的 shape | 适配方式 |
+|------|-------------|---------------------|---------|
+| **EEG-To-Text** | `eeg_word_norm1d`（fallback: `eeg`）<br>`mask_word`（fallback: `mask`） | (B, 56, 840) | 直接使用；`max_new_tokens=56, num_beams=5, do_sample=True, rep_penalty=5.0` |
+| **EEG2Text** | `eeg_spectro`（fallback: `eeg_eeg2text`）<br>`mask_spectro`（fallback: `mask_eeg2text`） | (B, 374, 65) | 直接使用预计算 spectrogram；greedy decoding |
+| **CET-MAE** | `eeg_word_norm2d`（fallback: `eeg_normalized_2d`）<br>`mask_word_with_sent`（fallback: `mask_with_sent`） | (B, 56, 840) | wrapper 内追加句级 EEG（`sent_eeg_raw`）到序列末尾；greedy decoding |
+| **GLIM** | `eeg_word_raw`（fallback: `eeg_raw` / `eeg`）<br>`mask_word`（fallback: `mask`） | (B, 1280, 128) | wrapper 内动态转换：`adaptive_avg_pool1d` 840→128 + `interpolate` 56→1280；beam=2 |
+
+#### 生成参数配置
+
+各模型在 `eval_config.yaml` 的 `generation.model_overrides` 中独立配置，不强行统一 beam size：
+
+```yaml
+generation:
+  defaults:
+    max_new_tokens: 56
+    num_beams: 1
+    do_sample: false
+  model_overrides:
+    eeg_to_text:
+      max_new_tokens: 56
+      num_beams: 5
+      do_sample: true
+      repetition_penalty: 5.0
+    glim:
+      num_beams: 2
+```
+
+#### 说明
+
+- **EEG-To-Text** 和 **CET-MAE** 共享相同的词级频域特征基础（`eeg_word_norm1d` / `eeg_word_norm2d`），区别在于 CET-MAE 使用双重归一化和句级 EEG 追加。
+- **EEG2Text** 使用完全不同的路径：从 `eeg_spectro`（预计算 spectrogram）直接送入 ShallowNet，不使用词级特征。
+- **GLIM** 的维度转换（840→128, 56→1280）在 wrapper 层完成，转换与原始训练数据的分布可能存在差异，评估结果仅供参考。

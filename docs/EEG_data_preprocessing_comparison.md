@@ -36,3 +36,61 @@
   - GLIM 通过 DataFrame 的 `phase` 字段固定划分；
   - **CET-MAE** 在预处理脚本 `data2pickle_v2.py` 中完成划分，将样本直接写入对应目录，训练时合并 train+valid；
   - Benchmark 现在把 8:1:1 划分 **写进统一样本** 的 `phase` 字段，并在所有评估脚本和模型 wrapper 中强制使用同一份划分，从而保证各模型在相同样本集上进行对比。
+  
+  ---
+  
+  ### 三、统一 Benchmark v2 字段更新（2026-04-10）
+  
+  本次优化对统一数据集字段命名进行了规范化，并将 EEG2Text 的存储格式从原始时序改为 spectrogram。
+  
+  #### 3.1 字段命名变更（v1 → v2）
+  
+  | 旧字段名（v1） | 新字段名（v2） | Shape | 变化说明 |
+  |-------------|-------------|-------|---------|
+  | `eeg` / `eeg_normalized_1d` | `eeg_word_norm1d` | (max_len, 840) | 仅重命名；保留别名 `eeg` 向后兼容 |
+  | `eeg_raw` | `eeg_word_raw` | (max_len, 840) | 仅重命名 |
+  | `eeg_normalized_2d` | `eeg_word_norm2d` | (max_len, 840) | 仅重命名 |
+  | `eeg_eeg2text` | `eeg_spectro` | **(374, 65)** | **格式变更**：原始时序 (24000, 105) → scipy spectrogram |
+  | `mask` | `mask_word` | (max_len,) | 仅重命名；保留别名 `mask` 向后兼容 |
+  | `mask_with_sent` | `mask_word_with_sent` | (max_len,) | 仅重命名 |
+  | `mask_eeg2text` | `mask_spectro` | **(374,)** | 长度从 24000 改为 374 |
+  
+  命名规范遵循 `eeg_{表征类型}_{处理方式}` 模式：
+  - 表征类型：`word`（词级）、`spectro`（频谱）
+  - 处理方式：`raw`（未归一化）、`norm1d`（逐词1D归一化）、`norm2d`（全局2D归一化）
+  
+  #### 3.2 EEG2Text 数据格式变更说明
+  
+  **原存储方式（v1）**：直接存储 `rawData` 原始时序 `(24000, 105)`，每样本约 9.6 MB float32。
+  
+  **新存储方式（v2）**：在 `build_unified_dataset.py` 中预计算 spectrogram：
+  - 使用 `scipy.signal.spectrogram(signal, fs=500, nperseg=128, noverlap=64)` 逐通道计算
+  - 对所有通道的频谱取均值，得到 `(374, 65)` 格式
+  - 每样本约 97 KB，**节省 99% 存储空间**
+  - 与 EEG2Text 原始 `data_spectro.py` 的预处理逻辑完全对齐
+  
+  #### 3.3 向后兼容策略
+  
+  旧版 PKL 文件（v1 字段名）通过 `dataset.py` 中的 `_get_field()` 辅助函数自动向后兼容：
+  
+  ```python
+  def _get_field(item, new_key, *fallback_keys):
+      if new_key in item: return item[new_key]
+      for key in fallback_keys:
+          if key in item: return item[key]
+      return None
+  ```
+  
+  各 wrapper 同样使用 `batch.get(new_key, batch.get(old_key))` 模式，确保新旧 PKL 文件均可使用。
+  
+  #### 3.4 统一 Benchmark v2 流程总览
+  
+  | 步骤 | 说明 |
+  |------|------|
+  | 原始数据起点 | ZuCo v1/v2 `.mat` 文件（不变） |
+  | 构建工具 | `build_unified_dataset.py`（新增 `build_spectrogram()` 函数） |
+  | 中间存储 | 单一 `unified_zuco.pkl`，包含 v2 字段名的 `List[Dict]` |
+  | max_len | **56**（统一基准，与 EEG-To-Text 原始训练一致） |
+  | 分割验证 | 三个 phase 均非空，否则抛出明确异常 |
+  | 随机种子 | `numpy.seed + random.seed` 双重固定 |
+  | 模型访问 | 通过 `UnifiedDataset(phase=...)` 加载，统一使用 v2 字段名 |

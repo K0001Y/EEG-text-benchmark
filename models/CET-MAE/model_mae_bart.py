@@ -52,9 +52,10 @@ def compute_sentencelevel_contrastive_logits(projection_embeddings,inputs_attn_m
 
 class PositionalEncoding(nn.Module):
 
-    def __init__(self, d_model, dropout=0.1, max_len=5000):
+    def __init__(self, d_model, dropout=0.1, max_len=5000, use_segment_coefficients=True):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
+        self.use_segment_coefficients = use_segment_coefficients
 
         pe = torch.zeros(max_len, d_model) # (5000,840)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1) # (5000,1)
@@ -64,26 +65,25 @@ class PositionalEncoding(nn.Module):
         pe = pe.unsqueeze(0).transpose(0, 1) # (5000,1,840)
         self.register_buffer('pe', pe)
 
-    def forward(self, x):
-        # print('[DEBUG] input size:', x.size())  # {Tensor:(16,57,840)}
-        # print('[DEBUG] positional embedding size:', self.pe.size())  # {Tensor:(5000,1,840)}
-        x = x + self.pe[:x.size(0), :]
-        # print('[DEBUG] output x with pe size:', x.size())
-        return self.dropout(x)
+        # Register segment_coefficients as parameter for compatibility with trained checkpoints
+        if use_segment_coefficients:
+            self.segment_coefficients = nn.Parameter(torch.tensor([2.0, 2.0, 4.0, 4.0, 8.0, 8.0, 16.0, 16.0]))
 
     def forward(self, x):
-        # self.pe = self.pe.to(x.device)
-        # self.segment_coefficients = nn.Parameter(torch.tensor([2.0, 2.0, 4.0, 4.0, 8.0, 8.0, 16.0, 16.0])).to(x.device)
-        # Calculate segment size
-        segment_size = x.size(2) // len(self.segment_coefficients)
+        if self.use_segment_coefficients:
+            # Use segment-weighted positional encoding
+            segment_size = x.size(2) // len(self.segment_coefficients)
 
-        # Apply coefficients to each segment
-        weighted_pe = self.pe[:, :, :segment_size] * self.segment_coefficients[0]
-        for i in range(1, len(self.segment_coefficients)):
-            weighted_pe = torch.cat((weighted_pe, self.pe[:, :, i * segment_size:(i + 1) * segment_size] * self.segment_coefficients[i]), dim=2)
+            # Apply coefficients to each segment
+            weighted_pe = self.pe[:, :, :segment_size] * self.segment_coefficients[0]
+            for i in range(1, len(self.segment_coefficients)):
+                weighted_pe = torch.cat((weighted_pe, self.pe[:, :, i * segment_size:(i + 1) * segment_size] * self.segment_coefficients[i]), dim=2)
 
-        x = x + weighted_pe[:x.size(0), :]
-        # return self.dropout(x)
+            x = x + weighted_pe[:x.size(0), :]
+        else:
+            # Standard positional encoding
+            x = x + self.pe[:x.size(0), :]
+
         return self.dropout(x)
 
 

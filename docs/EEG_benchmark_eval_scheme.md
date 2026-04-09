@@ -31,15 +31,30 @@
 
 统一样本格式建议按如下字段与步骤设计：
 
-1. 定义核心字段：
-   - `eeg`：`float32` 二维数组，形状为 \(L_\text{max} \times C\)，例如 `L_max=24000`、`C=105`。
-   - `mask`：`int8` 一维数组，长度为 `L_max`，有效时间步为 1，padding 为 0。
+1. 定义核心字段（v2 命名规范）：
+
+   **词级特征层**（EEG-To-Text / CET-MAE / GLIM 共用基础，`max_len=56`）
+   - `eeg_word_norm1d`：`float32` 二维数组，形状 `(max_len, 840)`，逐词 1D z-score 归一化（EEG-To-Text 使用）。
+   - `eeg_word_norm2d`：`float32` 二维数组，形状 `(max_len, 840)`，全局 2D z-score 归一化（CET-MAE 使用）。
+   - `eeg_word_raw`：`float32` 二维数组，形状 `(max_len, 840)`，未归一化原始词级 EEG（GLIM wrapper 使用）。
+   - `mask_word`：`int8` 一维数组，长度 `max_len`，1=有效词，0=padding。
+   - `mask_word_with_sent`：`int8` 一维数组，含句级 token 的 mask（CET-MAE 使用）。
+   - `sent_eeg_raw`：`float32` 一维数组，形状 `(840,)`，句级 EEG 特征（CET-MAE 追加到词序列末尾）。
+
+   **频谱层**（EEG2Text 专用）
+   - `eeg_spectro`：`float32` 二维数组，形状 `(374, 65)`，由 rawData 经 `scipy.signal.spectrogram(fs=500, nperseg=128, noverlap=64)` 通道均值得到。
+   - `mask_spectro`：`int8` 一维数组，长度 374，频谱有效性 mask。
+
+   **文本与元信息**
    - `input_text`：ZuCo 中的刺激句子文本，作为解码目标。
-   - `prompt`：例如 `"<NR> <ZuCo1> <ZAB>"`，编码任务、数据集和被试信息。
-   - `text_uid`：文本唯一 ID，用于识别相同句子的不同 EEG 片段。
-2. 统一时间长度：
-   - 对每条 EEG，将原始长度 T 的序列在时间维上补零或截断到统一的 `L_max`；
-   - 同时在 `mask` 中将前 T 个位置置为 1，补零部分置为 0。
+   - `text_uid`（存于 `meta`）：文本唯一 ID，用于识别相同句子的不同 EEG 片段。
+
+   **向后兼容别名**（旧 PKL 文件支持）
+   - `eeg` → `eeg_word_norm1d`；`mask` → `mask_word`（`dataset.py` 自动 fallback）
+
+2. 统一时间长度（词级）：
+   - 词级序列：按词数截断/补零到 `max_len=56`，`mask_word` 标记有效位置。
+   - 频谱序列：spectrogram 输出固定为 374 时间步，`mask_spectro` 标记有效位置。
 3. 补充元信息字段（可选但推荐）：
    - `task`（task1/task2/task3）、`dataset`（ZuCo1/ZuCo2）、`subject`（被试 ID）；
    - `sentiment_label`（情感标签，仅对 task1 有意义）、`relation_label`（关系标签，仅对 task3 有意义）。
@@ -202,83 +217,102 @@
 
 #### 7.1 从 ZuCo `.mat` 到统一 EEG-Text pickle
 
-1. 入口脚本：使用 `benchmark_eval/build_unified_dataset_eegtotext.py`。
-   - 通过命令行参数指定 `--zuco-root`（默认为 `models/EEG-To-Text-main/dataset/ZuCo`）、`--tasks`（如 `task1-SR,task2-NR,task3-TSR,task2-NR-2.0`）、`--output`（统一数据 pickle 路径），以及 `--max-len`、`--dim`、`--eeg-type` 等超参数。
+1. 入口脚本：使用 `benchmark_eval/data_processing/build_unified_dataset.py`。
+   - 通过命令行参数指定 `--zuco-root`、`--tasks`（如 `task1-SR,task2-NR,task3-TSR,task2-NR-2.0`）、`--output`（统一数据 pickle 路径），以及 `--max-len`（默认 56）、`--dim`、`--eeg-type` 等超参数。
+   - 全局随机种子：`numpy.seed + random.seed` 双重固定，保证划分可复现。
 2. 解析 ZuCo v1 `.mat`：
-   - 调用 `load_dataset_from_mat_v1(zuco_root, task_name)`，从 `ZuCo/<task>/Matlab_files/*.mat` 读取原始 Matlab 结构。
-   - 对于每个被试 subject，构造 `dataset_dict[subject] = List[sent_obj or None]`，其中 `sent_obj` 至少包含：
-     - `content`：句子字符串；
-     - `sentence_level_EEG`：`mean_t1`/`mean_t2`/`mean_a1`/.../`mean_g2` 这 8 个频段的句级 EEG 向量；
-     - `word`：按词的列表，每个元素带有 `word_level_EEG`（包含 FFD/TRT/GD 各频段特征）。
+   - 调用 `load_dataset_from_mat_v1(zuco_root, task_name)`，从 `.mat` 读取原始 Matlab 结构。
+   - 对于每个被试，构造 `dataset_dict[subject]`，包含 `content`、`sentence_level_EEG`（8 频段均值）和 `word`（词级 EEG 列表）。
 3. 解析 ZuCo v2 `.mat`：
-   - 调用 `load_dataset_from_mat_v2(zuco_root)`，从 v2 的 HDF5 `.mat` 中读取 `sentenceData`。
-   - 使用 `models.EEG-To-Text-main.util.data_loading_helpers_modified` 中的工具，把 HDF5 引用解码成句子字符串和词级 EEG 特征，同样组织成 `dataset_dict[subject]` 结构。
-4. 构建统一样本：
+   - 调用 `load_dataset_from_mat_v2(zuco_root)`，从 HDF5 `.mat` 中读取 `sentenceData`，同样组织成 `dataset_dict[subject]` 结构。
+4. 构建统一样本（v2 字段）：
    - 对每个任务/被试，调用 `build_samples_for_task(dataset_dict, task_name, max_len, dim, eeg_type)`。
-   - 对每条句子：
-     - 从 `word_level_EEG[eeg_type][band]` 中按 `DEFAULT_BANDS = ["_t1", "_t2", "_a1", "_a2", "_b1", "_b2", "_g1", "_g2"]` 拼接出单词级向量，并做 1D z-score 归一化；
-     - 从 `sentence_level_EEG` 中按相同频段拼接句级向量，并做 1D 归一化；
-     - 将所有单词向量 + 句级向量堆叠成二维矩阵，整体做 2D z-score 归一化，再在时间维上截断/补零到固定 `L_max = max_len`；
-     - 得到 `eeg`：形状为 `(L_max, C)` 的 `float32` 数组，其中 `C = dim * len(bands)`；
-     - 构造 `mask`：前 `seq_len` 位置为 1.0，padding 部分为 0.0；
-     - 同时填充：
-       - `input_text` / `reference_text`：均为 ZuCo 的原始句子文本；
-       - `meta`：包含 `task`、`subject`、`sentence_index`、`source="ZuCo-MAT"` 等信息；
-       - `phase` 先置为 `None`，后续统一划分。
-5. 统一划分 train/val/test：
-   - 在 `build_samples_for_task` 末尾，按被试内样本顺序做 8:1:1 划分：
-     - 前 80% 设为 `phase="train"`；
-     - 中间 ~10% 设为 `phase="val"`；
-     - 剩余样本设为 `phase="test"`；
-   - 所有任务和被试的样本合并成一个 `List[Dict]`，最终通过 `pickle.dump` 保存到 `--output` 指定的统一数据文件中。
+   - 对每条句子生成如下字段：
+     - `eeg_word_raw`：各词按 8 频段拼接，形状 `(max_len, 840)`，未归一化
+     - `eeg_word_norm1d`：逐词 1D z-score 归一化，形状 `(max_len, 840)`
+     - `eeg_word_norm2d`：全局 2D z-score 归一化，形状 `(max_len, 840)`
+     - `eeg_spectro`：由 rawData 经 `build_spectrogram()` 预计算的频谱，形状 `(374, 65)`（每样本约 97 KB，相比原始时序节省 99% 存储）
+     - `mask_word` / `mask_word_with_sent` / `mask_spectro`：各自对应 mask
+     - `sent_eeg_raw`：句级 EEG 特征，形状 `(840,)`
+     - `input_text`、`meta`（含 `task`、`subject`、`text_uid` 等）
+5. spectrogram 预计算（替代原始时序存储）：
+   - 使用 `build_spectrogram()` 函数对 `rawData (105, T)` 逐通道计算 spectrogram；
+   - 参数：`scipy.signal.spectrogram(signal, fs=500, nperseg=128, noverlap=64)`；
+   - 所有通道频谱取均值，截断/补全至固定形状 `(374, 65)`；
+   - 与 EEG2Text 原始 `data_spectro.py` 的预处理逻辑完全对齐。
+6. 数据划分验证与写入：
+   - 按被试内样本顺序做 8:1:1 划分（前80% train，中10% val，后10% test）；
+   - **验证**：三个 phase 均非空，否则抛出明确异常（`ValueError`）；
+   - 将 `phase` 字段写入每个样本，通过 `pickle.dump` 保存为统一 `List[Dict]`。
 
 #### 7.2 从统一 pickle 到评估用 DataLoader
 
-1. 入口类：`benchmark_eval/dataset.py` 中的 `UnifiedDataset`。
-   - 初始化时读取统一 pickle：`UnifiedDataset(data_path, phase="test")`；
-   - 遍历 pickle 中的每个样本字典，封装为 `UnifiedSample`（包含 `eeg`、`mask`、`input_text`、`reference_text`、`phase`、`meta`）；
-   - 若指定了 `phase`，只保留 `sample.phase == phase`（或 `phase` 缺失时全部保留）。
-2. 提供给 PyTorch 的样本形式：
-   - `__getitem__` 返回一个字典：
-     - `idx`：样本在统一数据中的全局索引；
-     - `eeg`：转换为 `torch.float32` 的张量，形状 `(L_max, C)`；
-     - `mask`：转换为 `torch.float32` 的张量，形状 `(L_max,)`；
-     - `input_text`：原始句子文本；
-     - `reference_text`：用于计算指标的目标文本；
-     - `meta`：包含任务、被试等元信息的字典。
+1. 入口类：`benchmark_eval/data_processing/dataset.py` 中的 `UnifiedDataset`。
+   - 初始化：`UnifiedDataset(data_path, phase="test")`；
+   - 遍历 pickle 中每个样本字典，封装为 `UnifiedSample`；
+   - 使用 `_get_field(item, new_key, *fallback_keys)` 辅助函数实现 v1 字段名自动 fallback（向后兼容旧 PKL 文件）；
+   - 若指定了 `phase`，只保留对应 phase 的样本。
+2. 提供给 PyTorch 的样本形式（`__getitem__` 返回字典）：
+   - `idx`：样本全局索引
+   - `eeg_word_norm1d` / `eeg_word_norm2d` / `eeg_word_raw`：词级 EEG，`torch.float32`，形状 `(max_len, 840)`
+   - `eeg_spectro`：频谱 EEG，`torch.float32`，形状 `(374, 65)`
+   - `mask_word` / `mask_word_with_sent` / `mask_spectro`：各自 mask，`torch.float32`
+   - `sent_eeg_raw`：句级 EEG，`torch.float32`，形状 `(840,)`
+   - `input_text`：原始句子文本
+   - `meta`：包含 task、subject、text_uid、sentiment_label、relation_label 等
+   - 向后兼容别名：`eeg`（→ `eeg_word_norm1d`）、`mask`（→ `mask_word`）同时输出，旧 wrapper 可直接使用
 
 #### 7.3 评估脚本如何把数据喂给模型
 
-1. 入口脚本：`benchmark_eval/eval_runner.py`。
+1. 入口脚本：`benchmark_eval/evaluation/eval_runner.py`。
    - 命令行参数：
      - `--data-path`：统一数据 pickle 路径；
-     - `--phase`：评估使用的划分（默认为 `test`）；
+     - `--phase`：评估使用的划分（默认 `test`）；
      - `--output-dir`：保存日志和预测结果的目录；
-     - `--model-name`：选择具体的模型封装器（如 `dummy`、后续扩展的 `eeg_to_text`、`cet_mae`、`glim` 等）。
-   - 脚本会构造 `UnifiedDataset` 和对应的 `DataLoader`，并支持中断恢复（通过 `state.json` 和增量写入的 `predictions.jsonl`）。
+     - `--model-name`：选择具体的模型封装器；
+     - `--seed`：全局随机种子（默认 42）。
+   - 启动时调用 `set_seed(seed)` 固定所有随机性：`random` / `numpy` / `torch` / `torch.cuda` / `cudnn`。
+   - DataLoader 使用 `torch.Generator().manual_seed(seed)` 固定 worker 随机性，确保 batch 顺序可复现。
+   - 脚本支持中断恢复（通过 `state.json` 和增量写入的 `predictions.jsonl`）。
 2. 批处理数据并调用模型：
-   - 从 `DataLoader` 取到 `batch` 后，得到：
-     - `batch["idx"]`、`batch["eeg"]`、`batch["mask"]`、`batch["input_text"]`、`batch["reference_text"]`、`batch["meta"]`；
-   - 为了让模型可以访问原始文本，评估脚本会构造 `meta_batch`：
-     - 对每条样本，将 `batch["meta"][i]` 拷贝一份，并额外加入 `"input_text"` 字段；
-   - 通过工厂函数 `build_model_wrapper(args.model_name)` 构建对应的 `BenchmarkModelWrapper` 实例 `model`；
-   - 调用 `model.generate_text(eeg, mask, meta_batch)` 得到长度为 batch_size 的预测文本列表。
+   - 从 DataLoader 取到 `batch`，包含 v2 字段（`eeg_word_norm1d`、`eeg_spectro`、`mask_word` 等）及向后兼容别名；
+   - 通过 `build_model_wrapper(args.model_name)` 构建对应 `BenchmarkModelWrapper` 实例；
+   - 调用 `model.generate_text(eeg, mask, meta_batch, batch=batch)` 得到预测文本列表。
 3. 保存预测并计算指标：
-   - 对每条样本写入一行 JSON 到 `predictions.jsonl`，内容包括：
-     - `idx`、`reference`（参考文本）、`prediction`（模型输出）、`meta`（包含任务/被试/原始 input_text 等）；
-   - 所有样本处理完后，重新加载预测文件，按 `idx` 排序后调用 `compute_corpus_metrics` 计算 BLEU/ROUGE 等指标，并写入 `metrics.json`。
+   - 对每条样本写入一行 JSON 到 `predictions.jsonl`；
+   - 所有样本处理完后调用 `compute_corpus_metrics` 计算文本指标；
+   - BERTScore 计算失败时（离线环境等），返回 `float('nan')` 并记录 `logger.warning`，不影响其他指标。
+4. 统一输出 schema（`metrics.json`）：
+   ```json
+   {
+       "overall":       { "bleu1": ..., "bleu2": ..., "rouge1": ..., "wer": ..., "bertscore": ... },
+       "grouped":       { "task1-SR": { "sample_count": N, "metrics": {...} }, ... },
+       "failed_count":  0,
+       "num_samples":   N
+   }
+   ```
+   所有模型输出都遵循此 schema，保证结果可直接跨模型比较。
 
 #### 7.4 不同模型封装层如何使用这些输入
 
-1. 抽象接口：`benchmark_eval/model_wrappers.py` 中定义了 `BenchmarkModelWrapper` 抽象基类：
-   - `encode_eeg(eeg, mask, meta)`：可选，用于复杂模型提前把 `(B, L_max, C)` 的 EEG 序列编码成隐变量；
-   - `generate_text(eeg, mask, meta)`：必需，实现从 EEG 到文本的**自回归生成**（内部必须使用诸如 HuggingFace `generate` 之类的接口，禁止 teacher forcing）。
-2. 当前占位实现：
-   - 目前仓库中提供了 `DummyEchoWrapper`，它忽略 `eeg` 和 `mask`，仅从 `meta["input_text"]` 读出原句并加上前缀，主要用于验证评估流程是否跑通。
-3. 后续为具体模型（EEG-To-Text、CET-MAE、EEG2Text、GLIM、DeWave 等）写封装时，遵循以下数据流：
-   - 封装器从评估脚本拿到统一格式的 `(eeg, mask, meta)`；
-   - 在 `encode_eeg` 或 `generate_text` 内部，将 `(B, L_max, C)` 转换为各自仓库原本使用的输入形式（例如词级 EEG 序列、句级 raw EEG、频谱图、或 DataFrame 结构等）；
-   - 再调用原模型的 encoder/decoder 或 `generate` 接口完成自回归预测；
-   - 这样可以在不改动原模型训练代码的前提下，让所有模型共享同一份 ZuCo→统一数据→评估脚本的数据路径。
+1. 抽象接口：`benchmark_eval/evaluation/model_wrappers.py` 中定义 `BenchmarkModelWrapper` 抽象基类：
+   - `encode_eeg(eeg, mask, meta=None, batch=None) -> Optional[Tensor]`：可选，提前把 EEG 序列编码为隐变量；
+   - `generate_text(eeg, mask, meta=None, batch=None) -> List[str]`：必需，实现从 EEG 到文本的**自回归生成**（内部必须使用 HuggingFace `generate` 或等价接口，禁止 teacher forcing）。
+   - `batch` 参数是首选数据来源：各 wrapper 优先从 `batch` 字典读取 v2 字段，`eeg`/`mask` 位置参数作为 fallback。
+2. 各模型 wrapper 字段读取方式：
+   | Wrapper | 读取字段（v2 优先，旧字段 fallback） | 传入模型的 shape |
+   |---------|--------------------------------------|----------------|
+   | EEG-To-Text | `eeg_word_norm1d`（fallback: `eeg`）<br>`mask_word`（fallback: `mask`） | (B, 56, 840) |
+   | EEG2Text | `eeg_spectro`（fallback: `eeg_eeg2text`）<br>`mask_spectro`（fallback: `mask_eeg2text`） | (B, 374, 65) |
+   | CET-MAE | `eeg_word_norm2d`（fallback: `eeg_normalized_2d`）<br>`mask_word_with_sent`（fallback: `mask_with_sent`） | (B, 56, 840) |
+   | GLIM | `eeg_word_raw`（fallback: `eeg_raw`/`eeg`）<br>`mask_word`（fallback: `mask`） | (B, 1280, 128)（wrapper 内动态转换） |
+3. 生成参数各模型独立配置（从 `eval_config.yaml` 的 `generation.model_overrides` 读取）：
+   - EEG-To-Text：`num_beams=5, do_sample=True, repetition_penalty=5.0, max_new_tokens=56`
+   - EEG2Text / CET-MAE：greedy decoding（`num_beams=1, do_sample=False`）
+   - GLIM：`num_beams=2`
+4. 向后兼容设计原则：
+   - 评估脚本不直接访问模型内部结构，始终通过 wrapper 接口交互；
+   - 旧 PKL 文件（v1 字段）不需要重新生成即可评估，wrapper 自动 fallback；
+   - 新建模型直接以 v2 字段名为输入，只需实现轻量 wrapper 封装。
 
 通过这一方案，可以在不强行修改各模型内部架构的前提下，把它们拉到同一实验地面上进行公平比较，并为你后续加入新的 EEG 表示（例如 pixel/pixl 编码）提供一套自然的接口和评估环境。

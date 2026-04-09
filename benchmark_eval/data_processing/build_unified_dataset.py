@@ -1,6 +1,7 @@
 import argparse
 import os
 import pickle
+import random
 from typing import Any, Dict, List
 import csv
 import sys
@@ -9,6 +10,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 import scipy.io as io
+import scipy.signal
 import h5py
 from glob import glob
 
@@ -18,6 +20,18 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 from utils.logging_utils import setup_logging, get_logger
+from constants import (
+    MAX_LEN,
+    EEG_CHANNELS,
+    EEG_BANDS,
+    EEG_WORD_DIM,
+    RAW_SAMPLING_RATE,
+    SPECTRO_NPERSEG,
+    SPECTRO_NOVERLAP,
+    SPECTRO_STEPS,
+    SPECTRO_FREQS,
+    DEFAULT_SEED,
+)
 
 
 DEFAULT_BANDS = ["_t1", "_t2", "_a1", "_a2", "_b1", "_b2", "_g1", "_g2"]
@@ -42,53 +56,84 @@ def normalize_2d(input_matrix: torch.Tensor) -> torch.Tensor:
     return (input_matrix - mean) / std
 
 
-def build_eeg2text_format(raw_data: np.ndarray, target_len: int = 24000) -> np.ndarray:
-    """将原始 EEG 时序数据转换为 EEG2Text 格式。
-    
+def build_spectrogram(
+    raw_data: np.ndarray,
+    fs: int = RAW_SAMPLING_RATE,
+    nperseg: int = SPECTRO_NPERSEG,
+    noverlap: int = SPECTRO_NOVERLAP,
+    target_steps: int = SPECTRO_STEPS,
+    target_freqs: int = SPECTRO_FREQS,
+) -> np.ndarray | None:
+    """将原始 EEG 时序数据转换为 spectrogram 格式。
+
+    参数与 EEG2Text 原始 data_spectro.py 完全对齐：
+      fs=500, nperseg=128, noverlap=64 → 每通道输出 (freqs, steps) ≈ (65, 374)
+
     Args:
         raw_data: 原始 EEG 数据，shape 为 (105, T) 或 (T, 105)
-        target_len: 目标时间长度，默认 24000
-        
+        fs: 采样率（Hz）
+        nperseg: 窗口大小
+        noverlap: 重叠大小
+        target_steps: 目标时间步数（不足则 padding，超出则截断）
+        target_freqs: 目标频率维度
+
     Returns:
-        转换后的 EEG 数据，shape 为 (target_len, 105)
+        spectrogram 数组，shape (target_steps, target_freqs)；失败时返回 None。
     """
-    # 确保数据是 numpy 数组
-    if hasattr(raw_data, 'numpy'):
-        raw_data = raw_data.numpy()
-    
+    if raw_data is None:
+        return None
+
     raw_data = np.asarray(raw_data, dtype=np.float32)
-    
-    # 判断输入 shape，如果是 (105, T) 则转置为 (T, 105)
-    if raw_data.shape[0] == 105 and len(raw_data.shape) == 2:
-        raw_data = raw_data.T  # 现在 shape 为 (T, 105)
-    
-    actual_len = raw_data.shape[0]
-    
-    # 截断或填充到 target_len
-    if actual_len >= target_len:
-        result = raw_data[:target_len, :]
+
+    # 统一 shape 为 (channels, T)
+    if raw_data.ndim == 2 and raw_data.shape[0] != EEG_CHANNELS and raw_data.shape[1] == EEG_CHANNELS:
+        raw_data = raw_data.T  # (T, 105) -> (105, T)
+    if raw_data.ndim != 2 or raw_data.shape[0] != EEG_CHANNELS:
+        return None
+
+    channel_spectros: List[np.ndarray] = []
+    for ch in range(raw_data.shape[0]):
+        signal_1d = raw_data[ch]
+        try:
+            _, _, Sxx = scipy.signal.spectrogram(
+                signal_1d, fs=fs, nperseg=nperseg, noverlap=noverlap
+            )
+        except Exception:
+            return None
+        # Sxx shape: (freqs, steps) → 取目标 freqs 维度
+        freqs_actual = Sxx.shape[0]
+        steps_actual = Sxx.shape[1]
+
+        # 截断或 padding 频率维度
+        if freqs_actual >= target_freqs:
+            Sxx = Sxx[:target_freqs, :]
+        else:
+            pad = np.zeros((target_freqs - freqs_actual, steps_actual), dtype=np.float32)
+            Sxx = np.concatenate([Sxx, pad], axis=0)
+
+        channel_spectros.append(Sxx)  # (target_freqs, steps_actual)
+
+    # 沿通道平均：(target_freqs, steps_actual)
+    avg_spectro = np.mean(np.stack(channel_spectros, axis=0), axis=0)
+
+    # 截断或 padding 时间步维度
+    steps_actual = avg_spectro.shape[1]
+    if steps_actual >= target_steps:
+        avg_spectro = avg_spectro[:, :target_steps]
     else:
-        # 填充零
-        pad_len = target_len - actual_len
-        pad = np.zeros((pad_len, 105), dtype=np.float32)
-        result = np.concatenate([raw_data, pad], axis=0)
-    
-    return result
+        pad = np.zeros((target_freqs, target_steps - steps_actual), dtype=np.float32)
+        avg_spectro = np.concatenate([avg_spectro, pad], axis=1)
 
+    # 转置为 (steps, freqs) 格式，与 EEG2Text 期望的输入一致
+    result = avg_spectro.T  # (target_steps, target_freqs)
 
-def build_eeg2text_mask(actual_len: int, target_len: int = 24000) -> List[float]:
-    """构建 EEG2Text 的 mask。
-    
-    Args:
-        actual_len: 实际时间长度
-        target_len: 目标时间长度
-        
-    Returns:
-        mask 列表，长度为 target_len，有效位置为 1.0，padding 为 0.0
-    """
-    effective_len = min(actual_len, target_len)
-    mask = [1.0] * effective_len + [0.0] * (target_len - effective_len)
-    return mask
+    # 1D z-score 归一化（逐样本）
+    mean = result.mean()
+    std = result.std()
+    if std > 0:
+        result = (result - mean) / std
+
+    return result.astype(np.float32)
 
 
 def get_word_embedding_eeg_tensor(word_obj: Dict[str, Any], eeg_type: str, bands: List[str], dim: int) -> Dict[str, torch.Tensor] | None:
@@ -104,7 +149,7 @@ def get_word_embedding_eeg_tensor(word_obj: Dict[str, Any], eeg_type: str, bands
         key = eeg_type + band
         try:
             arr = word_obj["word_level_EEG"][eeg_type][key][0:dim]
-        except Exception:
+        except (KeyError, IndexError, TypeError):
             return None
         features.append(arr)
     vec = np.concatenate(features)
@@ -124,7 +169,7 @@ def get_sent_eeg(sent_obj: Dict[str, Any], bands: List[str], dim: int) -> Dict[s
         for band in bands:
             key = "mean" + band
             features.append(sent_obj["sentence_level_EEG"][key][0:dim])
-    except Exception:
+    except (KeyError, TypeError):
         return None
     vec = np.concatenate(features)
     if len(vec) != dim * len(bands):
@@ -139,8 +184,8 @@ def get_sent_eeg(sent_obj: Dict[str, Any], bands: List[str], dim: int) -> Dict[s
 def build_samples_for_task(
     dataset: Dict[str, List[Any]],
     task_name: str,
-    max_len: int = 56,  # 与 EEG-To-Text 原始保持一致
-    dim: int = 105,
+    max_len: int = MAX_LEN,
+    dim: int = EEG_CHANNELS,
     eeg_type: str = "GD",
     bands: List[str] | None = None,
     logger=None,
@@ -150,18 +195,18 @@ def build_samples_for_task(
     参数中的 dataset 结构应为:
     - key: subject 名称
     - value: 该 subject 的句子列表，每个元素是 sent_obj 或 None
-      sent_obj 至少包含:
-        - "content": 句子文本
-        - "sentence_level_EEG": 带有 mean_t1...mean_g2 字段的字典
-        - "word": 词级列表, 每个元素含 "word_level_EEG" 下的 eeg_type/bands 数据
-    
-    存储多种格式供不同模型使用:
-    - eeg_raw: 原始词级 EEG（未归一化），shape (max_len, 840)
-    - sent_eeg_raw: 句级 EEG（单独存储），shape (840,)
-    - eeg_normalized_1d: 逐词 1D 归一化版本（EEG-To-Text 使用）
-    - eeg_normalized_2d: 词级+句级 2D 全局归一化版本（CET-MAE 等使用）
-    - mask: 基于词数的 mask，不包含句级 EEG
-    - seq_len: 原始词数
+
+    字段命名规范（v2）：
+    - eeg_word_raw:       词级原始 EEG，未归一化，shape (max_len, 840)
+    - eeg_word_norm1d:    逐词 1D z-score 归一化，shape (max_len, 840)
+    - eeg_word_norm2d:    词+句全局 2D z-score 归一化，shape (max_len, 840)
+    - sent_eeg_raw:       句级 EEG，单独存储，shape (840,)
+    - eeg_spectro:        EEG2Text spectrogram 格式，shape (SPECTRO_STEPS, SPECTRO_FREQS)
+    - mask_word:          词级 mask（1=有效, 0=padding），shape (max_len,)
+    - mask_word_with_sent:含句级 token 的 mask，shape (max_len,)
+    - mask_spectro:       spectrogram mask，shape (SPECTRO_STEPS,)
+    - eeg:                eeg_word_norm1d 的别名（向后兼容）
+    - mask:               mask_word 的别名（向后兼容）
     """
     if bands is None:
         bands = list(DEFAULT_BANDS)
@@ -198,38 +243,33 @@ def build_samples_for_task(
                 continue
 
             num_words = len(word_embeddings_raw)
-            
+
             # 截断到 max_len（仅针对词级）
             if num_words > max_len:
                 word_embeddings_raw = word_embeddings_raw[:max_len]
                 num_words = max_len
 
-            # ===== 1. 构建 eeg_raw：原始词级 EEG，padding 到 max_len =====
+            # ===== 1. eeg_word_raw：原始词级 EEG，padding 到 max_len =====
             raw_padded = word_embeddings_raw.copy()
             while len(raw_padded) < max_len:
                 raw_padded.append(torch.zeros(feature_dim, dtype=torch.float32))
-            eeg_raw = torch.stack(raw_padded).numpy().astype("float32")  # (max_len, 840)
+            eeg_word_raw = torch.stack(raw_padded).numpy().astype("float32")  # (max_len, 840)
 
-            # ===== 2. 构建 eeg_normalized_1d：逐词 1D 归一化（EEG-To-Text 使用）=====
-            norm_1d_list = []
-            for i, vec in enumerate(word_embeddings_raw):
-                norm_1d_list.append(normalize_1d(vec))
-            # padding
+            # ===== 2. eeg_word_norm1d：逐词 1D 归一化（EEG-To-Text 使用）=====
+            norm_1d_list = [normalize_1d(vec) for vec in word_embeddings_raw]
             while len(norm_1d_list) < max_len:
                 norm_1d_list.append(torch.zeros(feature_dim, dtype=torch.float32))
-            eeg_normalized_1d = torch.stack(norm_1d_list)
-            if torch.isnan(eeg_normalized_1d).any():
+            eeg_word_norm1d = torch.stack(norm_1d_list)
+            if torch.isnan(eeg_word_norm1d).any():
                 continue
-            eeg_normalized_1d = eeg_normalized_1d.numpy().astype("float32")  # (max_len, 840)
+            eeg_word_norm1d = eeg_word_norm1d.numpy().astype("float32")  # (max_len, 840)
 
-            # ===== 3. 构建 eeg_normalized_2d：词级+句级 2D 归一化（CET-MAE 等使用）=====
-            # 将句级 EEG 作为最后一个 time step 加入
+            # ===== 3. eeg_word_norm2d：词级+句级 2D 归一化（CET-MAE 等使用）=====
             all_raw_with_sent = word_embeddings_raw + [sent_eeg["raw"]]
             raw_matrix_with_sent = torch.stack(all_raw_with_sent)  # (num_words+1, 840)
             norm_2d_matrix = normalize_2d(raw_matrix_with_sent)
             if torch.isnan(norm_2d_matrix).any():
                 continue
-            # padding 到 max_len (注意这里包含句级，所以有效长度是 num_words+1)
             seq_len_with_sent = len(all_raw_with_sent)
             norm_2d_list = list(torch.unbind(norm_2d_matrix, dim=0))
             if seq_len_with_sent > max_len:
@@ -237,28 +277,29 @@ def build_samples_for_task(
                 seq_len_with_sent = max_len
             while len(norm_2d_list) < max_len:
                 norm_2d_list.append(torch.zeros(feature_dim, dtype=torch.float32))
-            eeg_normalized_2d = torch.stack(norm_2d_list).numpy().astype("float32")  # (max_len, 840)
+            eeg_word_norm2d = torch.stack(norm_2d_list).numpy().astype("float32")  # (max_len, 840)
 
-            # ===== 4. 句级 EEG 单独存储 =====
-            sent_eeg_raw = sent_eeg["raw"].numpy().astype("float32")  # (840,)
+            # ===== 4. sent_eeg_raw：句级 EEG 单独存储 =====
+            sent_eeg_raw_arr = sent_eeg["raw"].numpy().astype("float32")  # (840,)
 
-            # ===== 5. mask：基于词数，不包含句级 EEG =====
-            mask = [1.0] * num_words + [0.0] * (max_len - num_words)
-            
-            # ===== 6. mask_with_sent：包含句级 EEG 的 mask =====
-            mask_with_sent = [1.0] * min(seq_len_with_sent, max_len) + [0.0] * (max_len - min(seq_len_with_sent, max_len))
+            # ===== 5. mask_word：基于词数，不包含句级 EEG =====
+            mask_word = [1.0] * num_words + [0.0] * (max_len - num_words)
+
+            # ===== 6. mask_word_with_sent：包含句级 EEG 的 mask =====
+            eff_len_with_sent = min(seq_len_with_sent, max_len)
+            mask_word_with_sent = [1.0] * eff_len_with_sent + [0.0] * (max_len - eff_len_with_sent)
 
             record: Dict[str, Any] = {
-                # 多格式 EEG 数据
-                "eeg_raw": eeg_raw,                      # 原始词级，未归一化
-                "eeg_normalized_1d": eeg_normalized_1d,  # 逐词 1D 归一化（EEG-To-Text）
-                "eeg_normalized_2d": eeg_normalized_2d,  # 词+句 2D 归一化（CET-MAE）
-                "sent_eeg_raw": sent_eeg_raw,            # 句级 EEG，单独存储
-                # 兼容旧字段（使用 1D 归一化版本作为默认）
-                "eeg": eeg_normalized_1d,
-                # mask
-                "mask": mask,                            # 词级 mask
-                "mask_with_sent": mask_with_sent,        # 包含句级的 mask
+                # v2 字段命名
+                "eeg_word_raw": eeg_word_raw,           # 原始词级，未归一化
+                "eeg_word_norm1d": eeg_word_norm1d,     # 逐词 1D 归一化（EEG-To-Text）
+                "eeg_word_norm2d": eeg_word_norm2d,     # 词+句 2D 归一化（CET-MAE）
+                "sent_eeg_raw": sent_eeg_raw_arr,       # 句级 EEG，单独存储
+                "mask_word": mask_word,                 # 词级 mask
+                "mask_word_with_sent": mask_word_with_sent,  # 含句级的 mask
+                # 向后兼容别名
+                "eeg": eeg_word_norm1d,                 # 与旧字段 eeg 兼容
+                "mask": mask_word,                      # 与旧字段 mask 兼容
                 # 文本
                 "input_text": sent_obj.get("content", ""),
                 "reference_text": sent_obj.get("content", ""),
@@ -268,34 +309,29 @@ def build_samples_for_task(
                     "subject": subject,
                     "sentence_index": int(sent_idx),
                     "source": "ZuCo-MAT",
-                    "seq_len": num_words,                # 原始词数
-                    "seq_len_with_sent": min(seq_len_with_sent, max_len),  # 包含句级的长度
+                    "seq_len": num_words,
+                    "seq_len_with_sent": eff_len_with_sent,
                 },
             }
-            
-            # ===== 7. EEG2Text 格式：原始时序数据 =====
-            # 从 sent_obj 中获取 rawData（如果存在）
+
+            # ===== 7. eeg_spectro：spectrogram 格式（EEG2Text 使用）=====
             raw_data = None
             if "rawData" in sent_obj:
                 raw_data = sent_obj["rawData"]
-            elif "sentence_level_EEG" in sent_obj and "rawData" in sent_obj["sentence_level_EEG"]:
+            elif "sentence_level_EEG" in sent_obj and "rawData" in sent_obj.get("sentence_level_EEG", {}):
                 raw_data = sent_obj["sentence_level_EEG"]["rawData"]
-            
+
             if raw_data is not None:
-                try:
-                    record["eeg_eeg2text"] = build_eeg2text_format(raw_data, target_len=24000)
-                    # 获取原始时间长度
-                    if hasattr(raw_data, 'shape'):
-                        if len(raw_data.shape) == 2:
-                            actual_len = raw_data.shape[1] if raw_data.shape[0] == 105 else raw_data.shape[0]
-                        else:
-                            actual_len = raw_data.shape[0]
-                    else:
-                        actual_len = 24000
-                    record["mask_eeg2text"] = build_eeg2text_mask(actual_len, target_len=24000)
-                except Exception as e:
-                    if logger:
-                        logger.warning("Failed to build EEG2Text format for %s sent %d: %s", subject, sent_idx, e)
+                spectro = build_spectrogram(raw_data)
+                if spectro is not None:
+                    record["eeg_spectro"] = spectro          # (SPECTRO_STEPS, SPECTRO_FREQS)
+                    # mask_spectro：全 1（spectrogram 无 padding 概念，长度固定）
+                    record["mask_spectro"] = np.ones(SPECTRO_STEPS, dtype=np.float32)
+                else:
+                    logger.warning(
+                        "build_spectrogram returned None for %s sent %d", subject, sent_idx
+                    )
+
             subject_records.append(record)
 
         samples_by_subject[subject] = subject_records
@@ -303,8 +339,7 @@ def build_samples_for_task(
 
     # 基于 text_uid 划分 train/val/test，避免数据泄露
     unified: List[Dict[str, Any]] = []
-    
-    # 收集所有唯一的 text_uid（基于 input_text）
+
     text_to_records: Dict[str, List[Dict[str, Any]]] = {}
     for subject, records in samples_by_subject.items():
         for rec in records:
@@ -312,26 +347,39 @@ def build_samples_for_task(
             if text not in text_to_records:
                 text_to_records[text] = []
             text_to_records[text].append(rec)
-    
-    # 按 text_uid 划分
-    import random
-    random.seed(42)  # 固定随机种子保证可复现
-    
-    # 先排序保证初始顺序确定性，与 LazyZuCo_dataset 的划分完全一致
+
+    # 固定种子（random + numpy）保证划分可复现
+    random.seed(DEFAULT_SEED)
+    np.random.seed(DEFAULT_SEED)
+
     unique_texts = sorted(text_to_records.keys())
-    
     n_total = len(unique_texts)
+
+    # H-6：检查 total 是否足够
+    if n_total < 10:
+        raise ValueError(
+            f"Task {task_name}: too few unique texts ({n_total}) to split into train/val/test. "
+            "Need at least 10."
+        )
+
     n_train = max(int(n_total * 0.8), 1)
     n_val = max(int(n_total * 0.1), 0)
     if n_train + n_val >= n_total:
         n_train = max(n_total - 2, 1)
         n_val = max(min(n_total - n_train - 1, 1), 0)
-    
+
     train_texts = set(unique_texts[:n_train])
     val_texts = set(unique_texts[n_train:n_train + n_val])
     test_texts = set(unique_texts[n_train + n_val:])
-    
-    # 为每个样本分配 phase
+
+    # H-6：验证三个 phase 都非空
+    if not train_texts:
+        raise ValueError(f"Task {task_name}: train set is empty after split.")
+    if not val_texts:
+        raise ValueError(f"Task {task_name}: val set is empty after split.")
+    if not test_texts:
+        raise ValueError(f"Task {task_name}: test set is empty after split.")
+
     train_count = val_count = test_count = 0
     for text, records in text_to_records.items():
         if text in train_texts:
@@ -343,11 +391,11 @@ def build_samples_for_task(
         else:
             phase = "test"
             test_count += len(records)
-        
+
         for rec in records:
             rec["phase"] = phase
             unified.append(rec)
-    
+
     logger.info(
         "Task %s: total_texts=%d, train_texts=%d, val_texts=%d, test_texts=%d",
         task_name, n_total, len(train_texts), len(val_texts), len(test_texts)
@@ -356,14 +404,14 @@ def build_samples_for_task(
         "Task %s: total_samples=%d, train=%d, val=%d, test=%d",
         task_name, len(unified), train_count, val_count, test_count
     )
-
     logger.info("Task %s: collected %d unified samples", task_name, len(unified))
     return unified
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build unified EEG-text dataset directly from ZuCo MAT files")
-    parser.add_argument("--zuco-root", type=str, default="models/EEG-To-Text-main/dataset/ZuCo", help="Path to root directory that contains ZuCo task folders with Matlab_files")
+    parser.add_argument("--zuco-root", type=str, default="models/EEG-To-Text-main/dataset/ZuCo",
+                        help="Path to root directory that contains ZuCo task folders with Matlab_files")
     parser.add_argument(
         "--tasks",
         type=str,
@@ -371,18 +419,15 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated ZuCo task names to include",
     )
     parser.add_argument("--output", type=str, required=True, help="Output unified dataset pickle path")
-    parser.add_argument("--max-len", type=int, default=56, help="Max time steps L_max for EEG sequence (default 56, same as EEG-To-Text)")
-    parser.add_argument("--dim", type=int, default=105, help="Number of EEG channels per band")
-    parser.add_argument("--eeg-type", type=str, default="GD", help="EEG type key used in word_level_EEG (e.g. GD/FFD/TRT)")
+    parser.add_argument("--max-len", type=int, default=MAX_LEN,
+                        help=f"Max time steps L_max for EEG sequence (default {MAX_LEN}, same as EEG-To-Text)")
+    parser.add_argument("--dim", type=int, default=EEG_CHANNELS, help="Number of EEG channels per band")
+    parser.add_argument("--eeg-type", type=str, default="GD", help="EEG type key used in word_level_EEG")
     return parser.parse_args()
 
 
 def load_dataset_from_mat_v1(zuco_root: str, task_name: str, logger=None) -> Dict[str, List[Any]]:
-    """从 ZuCo v1 .mat 文件构造与 EEG-To-Text 相同结构的 dataset_dict。
-
-    dataset_dict: subject -> List[sent_obj or None]
-    sent_obj 至少包括 content / sentence_level_EEG / word / word_level_EEG。
-    """
+    """从 ZuCo v1 .mat 文件构造与 EEG-To-Text 相同结构的 dataset_dict。"""
     if logger is None:
         logger = get_logger("load_dataset_from_mat_v1")
 
@@ -415,7 +460,7 @@ def load_dataset_from_mat_v1(zuco_root: str, task_name: str, logger=None) -> Dic
                     "mean_g1": sent.mean_g1,
                     "mean_g2": sent.mean_g2,
                 }
-                # 保留原始时序数据（用于 EEG2Text）
+                # 保留原始时序数据（用于 spectrogram 计算）
                 if hasattr(sent, 'rawData'):
                     sent_obj["rawData"] = sent.rawData
 
@@ -466,7 +511,6 @@ def load_dataset_from_mat_v1(zuco_root: str, task_name: str, logger=None) -> Dic
                         word_tokens_with_mask.append(word.content)
                     else:
                         word_tokens_with_mask.append("[MASK]")
-                        # 当前策略: 无注视词在词级 EEG 中直接跳过
                         continue
 
                 sent_obj["word_tokens_has_fixation"] = word_tokens_has_fixation
@@ -475,7 +519,10 @@ def load_dataset_from_mat_v1(zuco_root: str, task_name: str, logger=None) -> Dic
 
                 dataset_dict[subject_name].append(sent_obj)
             else:
-                logger.warning("Missing sentence: subj=%s content=%s, append None", subject_name, getattr(sent, "content", ""))
+                logger.warning(
+                    "Missing sentence: subj=%s content=%s, append None",
+                    subject_name, getattr(sent, "content", "")
+                )
                 dataset_dict[subject_name].append(None)
 
     return dataset_dict
@@ -502,7 +549,6 @@ def load_dataset_from_mat_v2(zuco_root: str, logger=None) -> Dict[str, List[Any]
 
         file_name = os.path.join(rootdir, file)
         subject = file_name.split("ts")[1].split("_")[0]
-        # 排除 YMH（数据不完整）
         if subject == "YMH":
             continue
         if subject in dataset_dict:
@@ -527,7 +573,6 @@ def load_dataset_from_mat_v2(zuco_root: str, logger=None) -> Dict[str, List[Any]
         contentData = sentence_data["content"]
         wordData = sentence_data["word"]
 
-        # 动态导入 EEG-To-Text 的工具模块
         import importlib.util
         eeg_to_text_util_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -560,7 +605,10 @@ def load_dataset_from_mat_v2(zuco_root: str, logger=None) -> Dict[str, List[Any]
             )
 
             if word_data == {} or len(word_tokens_all) == 0:
-                logger.warning("Missing or empty word-level features: subj=%s content=%s, append None", subject, sent_string)
+                logger.warning(
+                    "Missing or empty word-level features: subj=%s content=%s, append None",
+                    subject, sent_string
+                )
                 dataset_dict[subject].append(None)
                 continue
 
@@ -574,34 +622,16 @@ def load_dataset_from_mat_v2(zuco_root: str, logger=None) -> Dict[str, List[Any]
                     assert len(gd) == len(trt) == len(ffd) == 8
                     word_obj["word_level_EEG"] = {
                         "GD": {
-                            "GD_t1": gd[0],
-                            "GD_t2": gd[1],
-                            "GD_a1": gd[2],
-                            "GD_a2": gd[3],
-                            "GD_b1": gd[4],
-                            "GD_b2": gd[5],
-                            "GD_g1": gd[6],
-                            "GD_g2": gd[7],
+                            "GD_t1": gd[0], "GD_t2": gd[1], "GD_a1": gd[2], "GD_a2": gd[3],
+                            "GD_b1": gd[4], "GD_b2": gd[5], "GD_g1": gd[6], "GD_g2": gd[7],
                         },
                         "FFD": {
-                            "FFD_t1": ffd[0],
-                            "FFD_t2": ffd[1],
-                            "FFD_a1": ffd[2],
-                            "FFD_a2": ffd[3],
-                            "FFD_b1": ffd[4],
-                            "FFD_b2": ffd[5],
-                            "FFD_g1": ffd[6],
-                            "FFD_g2": ffd[7],
+                            "FFD_t1": ffd[0], "FFD_t2": ffd[1], "FFD_a1": ffd[2], "FFD_a2": ffd[3],
+                            "FFD_b1": ffd[4], "FFD_b2": ffd[5], "FFD_g1": ffd[6], "FFD_g2": ffd[7],
                         },
                         "TRT": {
-                            "TRT_t1": trt[0],
-                            "TRT_t2": trt[1],
-                            "TRT_a1": trt[2],
-                            "TRT_a2": trt[3],
-                            "TRT_b1": trt[4],
-                            "TRT_b2": trt[5],
-                            "TRT_g1": trt[6],
-                            "TRT_g2": trt[7],
+                            "TRT_t1": trt[0], "TRT_t2": trt[1], "TRT_a1": trt[2], "TRT_a2": trt[3],
+                            "TRT_b1": trt[4], "TRT_b2": trt[5], "TRT_g1": trt[6], "TRT_g2": trt[7],
                         },
                     }
                     sent_obj["word"].append(word_obj)
@@ -640,9 +670,7 @@ def _load_task1_sentiment_labels(materials_dir: str, logger) -> Dict[str, int]:
             if sentence in mapping and mapping[sentence] != label:
                 logger.warning(
                     "Conflicting sentiment labels for sentence %r: %r vs %r",
-                    sentence,
-                    mapping[sentence],
-                    label,
+                    sentence, mapping[sentence], label,
                 )
             mapping[sentence] = label
 
@@ -651,7 +679,7 @@ def _load_task1_sentiment_labels(materials_dir: str, logger) -> Dict[str, int]:
 
 
 def _load_task2_relation_labels(materials_dir: str, logger) -> Dict[str, str]:
-    """加载 ZuCo1 task2 的关系标签，返回 sentence -> relation_types 映射。"""
+    """加载 ZuCo1 task2 的关系标签。"""
     path = os.path.join(materials_dir, "relations_labels_task2.csv")
     mapping: Dict[str, str] = {}
     if not os.path.isfile(path):
@@ -668,9 +696,7 @@ def _load_task2_relation_labels(materials_dir: str, logger) -> Dict[str, str]:
             if sentence in mapping and mapping[sentence] != rel:
                 logger.warning(
                     "Conflicting relation labels (task2) for sentence %r: %r vs %r",
-                    sentence,
-                    mapping[sentence],
-                    rel,
+                    sentence, mapping[sentence], rel,
                 )
             mapping[sentence] = rel
 
@@ -679,7 +705,7 @@ def _load_task2_relation_labels(materials_dir: str, logger) -> Dict[str, str]:
 
 
 def _load_task3_relation_labels(materials_dir: str, logger) -> Dict[str, str]:
-    """加载 ZuCo1 task3 的关系标签，返回 sentence -> relation_type 映射。"""
+    """加载 ZuCo1 task3 的关系标签。"""
     path = os.path.join(materials_dir, "relations_labels_task3.csv")
     mapping: Dict[str, str] = {}
     if not os.path.isfile(path):
@@ -696,9 +722,7 @@ def _load_task3_relation_labels(materials_dir: str, logger) -> Dict[str, str]:
             if sentence in mapping and mapping[sentence] != rel:
                 logger.warning(
                     "Conflicting relation labels (task3) for sentence %r: %r vs %r",
-                    sentence,
-                    mapping[sentence],
-                    rel,
+                    sentence, mapping[sentence], rel,
                 )
             mapping[sentence] = rel
 
@@ -709,30 +733,27 @@ def _load_task3_relation_labels(materials_dir: str, logger) -> Dict[str, str]:
 def _enrich_samples_with_metadata_and_labels(samples: List[Dict[str, Any]], logger) -> None:
     """补全 meta 中的 dataset/text_uid 以及情感与关系标签。"""
     this_dir = os.path.dirname(os.path.abspath(__file__))
-    # project_root 是 benchmark_eval，需要上一级到 benchmark
-    project_root = os.path.dirname(this_dir)  # benchmark_eval
-    benchmark_root = os.path.dirname(project_root)  # benchmark
+    project_root = os.path.dirname(this_dir)          # benchmark_eval
+    benchmark_root = os.path.dirname(project_root)    # benchmark
     zuco1_materials = os.path.join(benchmark_root, "data", "ZuCo1", "task_materials")
 
     sentiment_map = _load_task1_sentiment_labels(zuco1_materials, logger)
     rel_task2_map = _load_task2_relation_labels(zuco1_materials, logger)
     rel_task3_map = _load_task3_relation_labels(zuco1_materials, logger)
 
-    text_uid_map: Dict[tuple[str, str, str], int] = {}
+    text_uid_map: Dict[tuple, int] = {}
     next_uid = 0
 
     for rec in samples:
         meta = rec.get("meta") or {}
         task_name = meta.get("task", "")
 
-        # 数据集标记：当前简单按 task_name 区分 ZuCo1 / ZuCo2
         dataset_name = "ZuCo2" if task_name == "task2-NR-2.0" else "ZuCo1"
         if "dataset" not in meta:
             meta["dataset"] = dataset_name
 
         sentence = rec.get("input_text", "")
 
-        # 为 (dataset, task, sentence) 分配稳定的 text_uid
         uid_key = (dataset_name, task_name, sentence)
         if uid_key not in text_uid_map:
             text_uid_map[uid_key] = next_uid
@@ -740,13 +761,11 @@ def _enrich_samples_with_metadata_and_labels(samples: List[Dict[str, Any]], logg
         if "text_uid" not in meta:
             meta["text_uid"] = text_uid_map[uid_key]
 
-        # 情感标签：仅对 task1-SR 生效
         if task_name == "task1-SR":
             label = sentiment_map.get(sentence)
             if label is not None and "sentiment_label" not in meta:
                 meta["sentiment_label"] = int(label)
 
-        # 关系标签：task3-TSR 使用 task3 标签；task2-NR 使用 task2 标签
         if task_name == "task3-TSR":
             rel = rel_task3_map.get(sentence)
             if rel and "relation_label" not in meta:
@@ -767,6 +786,9 @@ def main() -> None:
     setup_logging(output_dir)
     logger = get_logger("build_unified_dataset")
     logger.info("Building unified dataset with args: %s", vars(args))
+    logger.info(
+        "Field naming convention v2: eeg_word_raw/norm1d/norm2d, eeg_spectro, mask_word/mask_spectro"
+    )
 
     task_names = [t.strip() for t in args.tasks.split(",") if t.strip()]
     all_samples: List[Dict[str, Any]] = []

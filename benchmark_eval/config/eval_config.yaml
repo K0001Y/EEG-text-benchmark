@@ -1,15 +1,22 @@
 # 统一 EEG-to-Text Benchmark 评估配置
-# 默认配置，可通过命令行参数或自定义配置文件覆盖
+# 版本：v2（2026-04）
+# 主要变更：
+#   - max_len 统一为 56（与 EEG-To-Text 原始实现对齐，修复 C-1）
+#   - 新增各模型独立生成参数区段（修复 H-1）
+#   - 新增 evaluation.seed 字段（修复 H-2）
+#   - 新增 spectrogram 相关配置（支持 D-1 EEG2Text 频谱格式）
 
 # 数据相关配置
 data:
-  # EEG 序列最大长度
-  max_len: 58
+  # 词级 EEG 序列最大长度
+  # 固定为 56，与 EEG-To-Text 原始模型训练时的设置完全一致
+  # CET-MAE 的额外句级 token 由 wrapper 层追加，不计入此值
+  max_len: 56
   # EEG 通道数（每频段）
   dim: 105
   # EEG 类型：GD (Gaze Duration), FFD (First Fixation Duration), TRT (Total Reading Time)
   eeg_type: "GD"
-  # 频段列表
+  # 频段列表（8 个频段，共 840 维）
   bands: ["_t1", "_t2", "_a1", "_a2", "_b1", "_b2", "_g1", "_g2"]
   # 数据划分种子
   split_seed: 42
@@ -18,20 +25,21 @@ data:
     train: 0.8
     val: 0.1
     test: 0.1
+  # EEG2Text spectrogram 参数（与原始 data_spectro.py 完全对齐）
+  spectro_fs: 500          # 原始采样率（Hz）
+  spectro_nperseg: 128     # 窗口大小
+  spectro_noverlap: 64     # 重叠大小
+  spectro_steps: 374       # 输出时间步数
+  spectro_freqs: 65        # 输出频率维度
 
-# 文本生成配置
+# 文本生成配置（默认值，各模型可在 models.{name}.generation 中覆盖）
 generation:
-  # 最大生成 token 数
-  max_new_tokens: 64
-  # beam search 大小（1 表示 greedy decoding）
+  # 默认使用 greedy decoding（各模型可单独覆盖）
+  max_new_tokens: 56
   num_beams: 1
-  # 是否采样
   do_sample: false
-  # 是否早停
   early_stopping: true
-  # 温度（仅在 do_sample=true 时有效）
   temperature: 1.0
-  # top_p（仅在 do_sample=true 时有效）
   top_p: 1.0
 
 # 评估指标配置
@@ -42,9 +50,9 @@ metrics:
   compute_rouge: true
   # 是否计算 WER
   compute_wer: true
-  # 是否计算 BERTScore（需要额外依赖，计算较慢）
+  # 是否计算 BERTScore（需要额外依赖，离线环境下会自动降级为 NaN）
   compute_bertscore: false
-  # BERTScore 模型类型
+  # BERTScore 模型类型（>900MB，离线环境请保持 compute_bertscore: false）
   bertscore_model: "microsoft/deberta-xlarge-mnli"
   # 是否计算分组指标（by_task, by_subject, by_dataset）
   compute_grouped_metrics: true
@@ -53,9 +61,9 @@ metrics:
 evaluation:
   # 评估批次大小
   batch_size: 8
-  # DataLoader 工作进程数
+  # DataLoader 工作进程数（0 = 主进程，避免多进程随机性）
   num_workers: 0
-  # 随机种子
+  # 全局随机种子（覆盖 random / numpy / torch / torch.cuda）
   seed: 42
   # 是否启用断点恢复
   resume: true
@@ -64,24 +72,35 @@ evaluation:
   # 是否保存每个样本的预测结果
   save_predictions: true
 
-# 模型特定配置（各模型 wrapper 的默认参数）
+# 模型特定配置（各模型 wrapper 的参数，包括架构参数和生成参数）
 models:
   # EEG-To-Text 模型配置
   eeg_to_text:
-    model_type: "bart"  # 或 "t5"
-    in_feature: 840
+    model_type: "bart"   # 或 "t5"
+    in_feature: 840      # 词级 EEG 特征维度
     decoder_embedding_size: 1024
     additional_encoder_nhead: 8
     additional_encoder_dim_feedforward: 2048
-  
+    # 生成参数（遵循原始论文设置）
+    generation:
+      max_new_tokens: 56
+      num_beams: 5
+      do_sample: true
+      repetition_penalty: 5.0
+      no_repeat_ngram_size: 2
+
   # EEG2Text 模型配置
   eeg2text:
-    max_spectro_datapoint: 24000
-    in_feature: 40
+    in_feature: 40       # ShallowNet 输出特征数
     decoder_embedding_size: 1024
     additional_encoder_nhead: 5
     additional_encoder_dim_feedforward: 2048
-  
+    # 生成参数（原始论文使用 greedy）
+    generation:
+      max_new_tokens: 56
+      num_beams: 1
+      do_sample: false
+
   # CET-MAE 模型配置
   cet_mae:
     embed_dim: 1024
@@ -91,31 +110,38 @@ models:
     trans_layers: 6
     decoder_embed_dim: 840
     pretrain_path: "./models/huggingface/bart-large"
-  
+    # 生成参数（greedy decoding）
+    generation:
+      max_new_tokens: 56
+      num_beams: 1
+      do_sample: false
+
   # GLIM 模型配置
   glim:
     text_model_id: "google/flan-t5-large"
+    # 以下参数从配置统一读取，不在 wrapper 内硬编码（修复 M-1）
     input_eeg_len: 1280
     hidden_eeg_len: 96
     input_dim: 128
     hidden_dim: 256
     embed_dim: 1024
+    # 生成参数（原始论文使用 beam=2）
+    generation:
+      max_new_tokens: 56
+      num_beams: 2
+      do_sample: false
 
 # 对照实验配置
 control_experiments:
-  # 是否运行噪声 EEG 实验
+  # 噪声 EEG 实验（验证模型是否真正利用 EEG 信号）
   run_noise_experiment: false
-  
-  # 噪声类型: "gaussian" | "uniform"
+  # 噪声类型: "gaussian" | "uniform" | "zero" | "shuffle"
   noise_type: "gaussian"
-  
-  # 噪声随机种子（保证可复现）
+  # 噪声随机种子（固定，确保跨模型对比公平）
   noise_seed: 42
-  
   # 高斯噪声参数
   noise_mean: 0.0
   noise_std: 1.0
-  
-  # 是否运行 EEG-文本配对打乱实验
+  # EEG-文本配对打乱实验
   run_shuffle_experiment: false
   shuffle_seed: 42
