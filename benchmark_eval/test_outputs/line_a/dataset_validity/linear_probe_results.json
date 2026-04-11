@@ -1,0 +1,147 @@
+{
+  "A1a_mean_pool": {
+    "variant": "A1a_mean_pool",
+    "top1_accuracy": 0.001615,
+    "top5_accuracy": 0.003767,
+    "top10_accuracy": 0.008073,
+    "random_baseline": 0.007692,
+    "n_train": 14903,
+    "n_test": 1858,
+    "n_classes": 130
+  },
+  "A1c_band_separated": {
+    "variant": "A1c_band_separated",
+    "top1_accuracy": 0.001615,
+    "top5_accuracy": 0.003767,
+    "top10_accuracy": 0.008073,
+    "random_baseline": 0.007692,
+    "n_train": 14903,
+    "n_test": 1858,
+    "n_classes": 130
+  },
+  "A1b_duration_weighted": {
+    "variant": "A1b_duration_weighted",
+    "status": "fallback_to_mean_pool",
+    "note": "fixation duration 数据不可用，需在 build_unified_dataset.py 中添加",
+    "top1_accuracy": 0.001615,
+    "top5_accuracy": 0.003767,
+    "top10_accuracy": 0.008073,
+    "random_baseline": 0.007692,
+    "n_train": 14903,
+    "n_test": 1858,
+    "n_classes": 130
+  },
+  "A2_cosine_similarity": {
+    "same_sent_diff_subj": {
+      "count": 13990,
+      "mean": 0.579848,
+      "std": 0.198972,
+      "median": 0.62371
+    },
+    "same_subj_diff_sent": {
+      "count": 76976,
+      "mean": 0.805207,
+      "std": 0.129294,
+      "median": 0.835159
+    },
+    "diff_sent_diff_subj": {
+      "count": 1634121,
+      "mean": 0.5722,
+      "std": 0.203663,
+      "median": 0.617686
+    },
+    "ranking": [
+      "same_subj_diff_sent",
+      "same_sent_diff_subj",
+      "diff_sent_diff_subj"
+    ]
+  },
+  "A2_eta_squared": {
+    "eta2_sentence": {
+      "mean": 0.091379,
+      "median": 0.069725,
+      "std": 0.058487
+    },
+    "eta2_subject": {
+      "mean": 0.478903,
+      "median": 0.481344,
+      "std": 0.131222
+    },
+    "n_features": 840,
+    "n_sentences": 130,
+    "n_subjects": 30,
+    "conclusion": "subject_dominant"
+  },
+  "A2_band_eta_squared": {
+    "theta1": {
+      "eta2_sentence_median": 0.059469,
+      "eta2_subject_median": 0.457515,
+      "eta2_sentence_mean": 0.064134,
+      "eta2_subject_mean": 0.466598
+    },
+    "theta2": {
+      "eta2_sentence_median": 0.056456,
+      "eta2_subject_median": 0.451114,
+      "eta2_sentence_mean": 0.059743,
+      "eta2_subject_mean": 0.448812
+    },
+    "alpha1": {
+      "eta2_sentence_median": 0.061815,
+      "eta2_subject_median": 0.459681,
+      "eta2_sentence_mean": 0.063612,
+      "eta2_subject_mean": 0.461606
+    },
+    "alpha2": {
+      "eta2_sentence_median": 0.083005,
+      "eta2_subject_median": 0.473954,
+      "eta2_sentence_mean": 0.090144,
+      "eta2_subject_mean": 0.468426
+    },
+    "beta1": {
+      "eta2_sentence_median": 0.08835,
+      "eta2_subject_median": 0.513127,
+      "eta2_sentence_mean": 0.098837,
+      "eta2_subject_mean": 0.487731
+    },
+    "beta2": {
+      "eta2_sentence_median": 0.069495,
+      "eta2_subject_median": 0.486119,
+      "eta2_sentence_mean": 0.087473,
+      "eta2_subject_mean": 0.464684
+    },
+    "gamma1": {
+      "eta2_sentence_median": 0.064491,
+      "eta2_subject_median": 0.441684,
+      "eta2_sentence_mean": 0.070414,
+      "eta2_subject_mean": 0.448255
+    },
+    "gamma2": {
+      "eta2_sentence_median": 0.201858,
+      "eta2_subject_median": 0.58082,
+      "eta2_sentence_mean": 0.196677,
+      "eta2_subject_mean": 0.585109
+    }
+  },
+  "A3_desubject": {
+    "linear_probe_desubject": {
+      "variant": "A3_desubject_mean_pool",
+      "top1_accuracy": 0.001076,
+      "top5_accuracy": 0.003767,
+      "top10_accuracy": 0.007535,
+      "random_baseline": 0.007692,
+      "n_train": 14903,
+      "n_test": 1858,
+      "n_classes": 130
+    },
+    "aggregated_retrieval": {
+      "r@1": 1.0,
+      "r@5": 1.0,
+      "r@10": 1.0,
+      "mrr": 1.0,
+      "mean_rank": 1.0,
+      "median_rank": 1.0,
+      "n_sentences": 130
+    },
+    "n_subjects_with_stats": 30
+  }
+}

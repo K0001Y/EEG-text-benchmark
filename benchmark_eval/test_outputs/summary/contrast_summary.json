@@ -1,0 +1,663 @@
+{
+  "line_a": {
+    "data": {
+      "A1a_mean_pool": {
+        "variant": "A1a_mean_pool",
+        "top1_accuracy": 0.001615,
+        "top5_accuracy": 0.003767,
+        "top10_accuracy": 0.008073,
+        "random_baseline": 0.007692,
+        "n_train": 14903,
+        "n_test": 1858,
+        "n_classes": 130
+      },
+      "A1c_band_separated": {
+        "variant": "A1c_band_separated",
+        "top1_accuracy": 0.001615,
+        "top5_accuracy": 0.003767,
+        "top10_accuracy": 0.008073,
+        "random_baseline": 0.007692,
+        "n_train": 14903,
+        "n_test": 1858,
+        "n_classes": 130
+      },
+      "A1b_duration_weighted": {
+        "variant": "A1b_duration_weighted",
+        "status": "fallback_to_mean_pool",
+        "note": "fixation duration 数据不可用，需在 build_unified_dataset.py 中添加",
+        "top1_accuracy": 0.001615,
+        "top5_accuracy": 0.003767,
+        "top10_accuracy": 0.008073,
+        "random_baseline": 0.007692,
+        "n_train": 14903,
+        "n_test": 1858,
+        "n_classes": 130
+      },
+      "A2_cosine_similarity": {
+        "same_sent_diff_subj": {
+          "count": 13990,
+          "mean": 0.579848,
+          "std": 0.198972,
+          "median": 0.62371
+        },
+        "same_subj_diff_sent": {
+          "count": 76976,
+          "mean": 0.805207,
+          "std": 0.129294,
+          "median": 0.835159
+        },
+        "diff_sent_diff_subj": {
+          "count": 1634121,
+          "mean": 0.5722,
+          "std": 0.203663,
+          "median": 0.617686
+        },
+        "ranking": [
+          "same_subj_diff_sent",
+          "same_sent_diff_subj",
+          "diff_sent_diff_subj"
+        ]
+      },
+      "A2_eta_squared": {
+        "eta2_sentence": {
+          "mean": 0.091379,
+          "median": 0.069725,
+          "std": 0.058487
+        },
+        "eta2_subject": {
+          "mean": 0.478903,
+          "median": 0.481344,
+          "std": 0.131222
+        },
+        "n_features": 840,
+        "n_sentences": 130,
+        "n_subjects": 30,
+        "conclusion": "subject_dominant"
+      },
+      "A2_band_eta_squared": {
+        "theta1": {
+          "eta2_sentence_median": 0.059469,
+          "eta2_subject_median": 0.457515,
+          "eta2_sentence_mean": 0.064134,
+          "eta2_subject_mean": 0.466598
+        },
+        "theta2": {
+          "eta2_sentence_median": 0.056456,
+          "eta2_subject_median": 0.451114,
+          "eta2_sentence_mean": 0.059743,
+          "eta2_subject_mean": 0.448812
+        },
+        "alpha1": {
+          "eta2_sentence_median": 0.061815,
+          "eta2_subject_median": 0.459681,
+          "eta2_sentence_mean": 0.063612,
+          "eta2_subject_mean": 0.461606
+        },
+        "alpha2": {
+          "eta2_sentence_median": 0.083005,
+          "eta2_subject_median": 0.473954,
+          "eta2_sentence_mean": 0.090144,
+          "eta2_subject_mean": 0.468426
+        },
+        "beta1": {
+          "eta2_sentence_median": 0.08835,
+          "eta2_subject_median": 0.513127,
+          "eta2_sentence_mean": 0.098837,
+          "eta2_subject_mean": 0.487731
+        },
+        "beta2": {
+          "eta2_sentence_median": 0.069495,
+          "eta2_subject_median": 0.486119,
+          "eta2_sentence_mean": 0.087473,
+          "eta2_subject_mean": 0.464684
+        },
+        "gamma1": {
+          "eta2_sentence_median": 0.064491,
+          "eta2_subject_median": 0.441684,
+          "eta2_sentence_mean": 0.070414,
+          "eta2_subject_mean": 0.448255
+        },
+        "gamma2": {
+          "eta2_sentence_median": 0.201858,
+          "eta2_subject_median": 0.58082,
+          "eta2_sentence_mean": 0.196677,
+          "eta2_subject_mean": 0.585109
+        }
+      },
+      "A3_desubject": {
+        "linear_probe_desubject": {
+          "variant": "A3_desubject_mean_pool",
+          "top1_accuracy": 0.001076,
+          "top5_accuracy": 0.003767,
+          "top10_accuracy": 0.007535,
+          "random_baseline": 0.007692,
+          "n_train": 14903,
+          "n_test": 1858,
+          "n_classes": 130
+        },
+        "aggregated_retrieval": {
+          "r@1": 1.0,
+          "r@5": 1.0,
+          "r@10": 1.0,
+          "mrr": 1.0,
+          "mean_rank": 1.0,
+          "median_rank": 1.0,
+          "n_sentences": 130
+        },
+        "n_subjects_with_stats": 30
+      }
+    },
+    "diagnosis": {
+      "status": "completed",
+      "a1a_significant": false,
+      "a1c_significant": false,
+      "subject_dominant": true,
+      "conclusion": "在当前表示下，未检测到可检测的句子级语义信息",
+      "suggestion": "尝试时序模型或更换特征表示"
+    }
+  },
+  "line_b": {
+    "cet_mae": {
+      "comparisons": {
+        "gaussian": {
+          "r@1": {
+            "real": 0.010764,
+            "noise": 0.007535,
+            "diff": 0.003229,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@5": {
+            "real": 0.050592,
+            "noise": 0.040366,
+            "diff": 0.010226,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@10": {
+            "real": 0.088805,
+            "noise": 0.079117,
+            "diff": 0.009688,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "mrr": {
+            "real": 0.048363,
+            "noise": 0.042647,
+            "diff": 0.005715,
+            "empirical_threshold": 0.005,
+            "empirical_significant": true
+          },
+          "mean_rank": {
+            "real": 63.460171,
+            "noise": 64.278259,
+            "diff": -0.818089,
+            "empirical_threshold": 3.0,
+            "empirical_significant": false
+          }
+        },
+        "shuffle": {
+          "r@1": {
+            "real": 0.010764,
+            "noise": 0.00915,
+            "diff": 0.001615,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@5": {
+            "real": 0.050592,
+            "noise": 0.045748,
+            "diff": 0.004844,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@10": {
+            "real": 0.088805,
+            "noise": 0.083423,
+            "diff": 0.005382,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "mrr": {
+            "real": 0.048363,
+            "noise": 0.044809,
+            "diff": 0.003553,
+            "empirical_threshold": 0.005,
+            "empirical_significant": false
+          },
+          "mean_rank": {
+            "real": 63.460171,
+            "noise": 65.989777,
+            "diff": -2.529606,
+            "empirical_threshold": 3.0,
+            "empirical_significant": false
+          }
+        },
+        "zero": {
+          "r@1": {
+            "real": 0.010764,
+            "noise": 0.006459,
+            "diff": 0.004306,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@5": {
+            "real": 0.050592,
+            "noise": 0.044672,
+            "diff": 0.00592,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@10": {
+            "real": 0.088805,
+            "noise": 0.083961,
+            "diff": 0.004844,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "mrr": {
+            "real": 0.048363,
+            "noise": 0.042452,
+            "diff": 0.00591,
+            "empirical_threshold": 0.005,
+            "empirical_significant": true
+          },
+          "mean_rank": {
+            "real": 63.460171,
+            "noise": 65.196983,
+            "diff": -1.736813,
+            "empirical_threshold": 3.0,
+            "empirical_significant": false
+          }
+        }
+      },
+      "diagnosis": {
+        "model": "cet_mae",
+        "diagnosis": "B",
+        "conclusion": "学到 EEG 统计特性，但未学到跨模态对应",
+        "real_vs_gaussian_significant": true,
+        "real_vs_shuffle_significant": false,
+        "zero_anomaly": false
+      }
+    },
+    "eeg_to_text": {
+      "comparisons": {
+        "gaussian": {
+          "r@1": {
+            "real": 0.006459,
+            "noise": 0.006459,
+            "diff": 0.0,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@5": {
+            "real": 0.043057,
+            "noise": 0.043057,
+            "diff": 0.0,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@10": {
+            "real": 0.077503,
+            "noise": 0.078041,
+            "diff": -0.000538,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "mrr": {
+            "real": 0.044462,
+            "noise": 0.044476,
+            "diff": -1.4e-05,
+            "empirical_threshold": 0.005,
+            "empirical_significant": false
+          },
+          "mean_rank": {
+            "real": 63.328308,
+            "noise": 63.310009,
+            "diff": 0.018299,
+            "empirical_threshold": 3.0,
+            "empirical_significant": false
+          }
+        },
+        "shuffle": {
+          "r@1": {
+            "real": 0.006459,
+            "noise": 0.006459,
+            "diff": 0.0,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@5": {
+            "real": 0.043057,
+            "noise": 0.043057,
+            "diff": 0.0,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@10": {
+            "real": 0.077503,
+            "noise": 0.077503,
+            "diff": 0.0,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "mrr": {
+            "real": 0.044462,
+            "noise": 0.044429,
+            "diff": 3.4e-05,
+            "empirical_threshold": 0.005,
+            "empirical_significant": false
+          },
+          "mean_rank": {
+            "real": 63.328308,
+            "noise": 63.32185,
+            "diff": 0.006458,
+            "empirical_threshold": 3.0,
+            "empirical_significant": false
+          }
+        },
+        "zero": {
+          "r@1": {
+            "real": 0.006459,
+            "noise": 0.006459,
+            "diff": 0.0,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@5": {
+            "real": 0.043057,
+            "noise": 0.043057,
+            "diff": 0.0,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@10": {
+            "real": 0.077503,
+            "noise": 0.076964,
+            "diff": 0.000538,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "mrr": {
+            "real": 0.044462,
+            "noise": 0.04443,
+            "diff": 3.2e-05,
+            "empirical_threshold": 0.005,
+            "empirical_significant": false
+          },
+          "mean_rank": {
+            "real": 63.328308,
+            "noise": 63.359528,
+            "diff": -0.031219,
+            "empirical_threshold": 3.0,
+            "empirical_significant": false
+          }
+        }
+      },
+      "diagnosis": {
+        "model": "eeg_to_text",
+        "diagnosis": "A",
+        "conclusion": "编码器完全无效，未从 EEG 学到任何信息",
+        "real_vs_gaussian_significant": false,
+        "real_vs_shuffle_significant": false,
+        "zero_anomaly": false
+      }
+    },
+    "eeg2text": {
+      "comparisons": {
+        "gaussian": {
+          "r@1": {
+            "real": 0.011841,
+            "noise": 0.009688,
+            "diff": 0.002153,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@5": {
+            "real": 0.03929,
+            "noise": 0.047363,
+            "diff": -0.008073,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@10": {
+            "real": 0.080732,
+            "noise": 0.080194,
+            "diff": 0.000538,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "mrr": {
+            "real": 0.046304,
+            "noise": 0.044761,
+            "diff": 0.001542,
+            "empirical_threshold": 0.005,
+            "empirical_significant": false
+          },
+          "mean_rank": {
+            "real": 65.300858,
+            "noise": 65.257805,
+            "diff": 0.043053,
+            "empirical_threshold": 3.0,
+            "empirical_significant": false
+          }
+        },
+        "shuffle": {
+          "r@1": {
+            "real": 0.011841,
+            "noise": 0.008611,
+            "diff": 0.003229,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@5": {
+            "real": 0.03929,
+            "noise": 0.043057,
+            "diff": -0.003767,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@10": {
+            "real": 0.080732,
+            "noise": 0.076964,
+            "diff": 0.003767,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "mrr": {
+            "real": 0.046304,
+            "noise": 0.043442,
+            "diff": 0.002862,
+            "empirical_threshold": 0.005,
+            "empirical_significant": false
+          },
+          "mean_rank": {
+            "real": 65.300858,
+            "noise": 64.707214,
+            "diff": 0.593643,
+            "empirical_threshold": 3.0,
+            "empirical_significant": false
+          }
+        },
+        "zero": {
+          "r@1": {
+            "real": 0.011841,
+            "noise": 0.00592,
+            "diff": 0.00592,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@5": {
+            "real": 0.03929,
+            "noise": 0.038213,
+            "diff": 0.001076,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@10": {
+            "real": 0.080732,
+            "noise": 0.069968,
+            "diff": 0.010764,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "mrr": {
+            "real": 0.046304,
+            "noise": 0.040226,
+            "diff": 0.006078,
+            "empirical_threshold": 0.005,
+            "empirical_significant": true
+          },
+          "mean_rank": {
+            "real": 65.300858,
+            "noise": 63.883747,
+            "diff": 1.41711,
+            "empirical_threshold": 3.0,
+            "empirical_significant": false
+          }
+        }
+      },
+      "diagnosis": {
+        "model": "eeg2text",
+        "diagnosis": "A",
+        "conclusion": "编码器完全无效，未从 EEG 学到任何信息",
+        "real_vs_gaussian_significant": false,
+        "real_vs_shuffle_significant": false,
+        "zero_anomaly": false
+      }
+    },
+    "glim": {
+      "comparisons": {
+        "gaussian": {
+          "r@1": {
+            "real": 0.009688,
+            "noise": 0.00592,
+            "diff": 0.003767,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@5": {
+            "real": 0.044672,
+            "noise": 0.061895,
+            "diff": -0.017223,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@10": {
+            "real": 0.088267,
+            "noise": 0.122713,
+            "diff": -0.034446,
+            "empirical_threshold": 0.02,
+            "empirical_significant": true
+          },
+          "mrr": {
+            "real": 0.049184,
+            "noise": 0.053803,
+            "diff": -0.004619,
+            "empirical_threshold": 0.005,
+            "empirical_significant": false
+          },
+          "mean_rank": {
+            "real": 60.462864,
+            "noise": 58.488697,
+            "diff": 1.974167,
+            "empirical_threshold": 3.0,
+            "empirical_significant": false
+          }
+        },
+        "shuffle": {
+          "r@1": {
+            "real": 0.009688,
+            "noise": 0.011302,
+            "diff": -0.001615,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@5": {
+            "real": 0.044672,
+            "noise": 0.044133,
+            "diff": 0.000538,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@10": {
+            "real": 0.088267,
+            "noise": 0.093649,
+            "diff": -0.005382,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "mrr": {
+            "real": 0.049184,
+            "noise": 0.04804,
+            "diff": 0.001143,
+            "empirical_threshold": 0.005,
+            "empirical_significant": false
+          },
+          "mean_rank": {
+            "real": 60.462864,
+            "noise": 63.129169,
+            "diff": -2.666306,
+            "empirical_threshold": 3.0,
+            "empirical_significant": false
+          }
+        },
+        "zero": {
+          "r@1": {
+            "real": 0.009688,
+            "noise": 0.009688,
+            "diff": 0.0,
+            "empirical_threshold": 0.02,
+            "empirical_significant": false
+          },
+          "r@5": {
+            "real": 0.044672,
+            "noise": 0.078041,
+            "diff": -0.033369,
+            "empirical_threshold": 0.02,
+            "empirical_significant": true
+          },
+          "r@10": {
+            "real": 0.088267,
+            "noise": 0.130248,
+            "diff": -0.041981,
+            "empirical_threshold": 0.02,
+            "empirical_significant": true
+          },
+          "mrr": {
+            "real": 0.049184,
+            "noise": 0.059571,
+            "diff": -0.010388,
+            "empirical_threshold": 0.005,
+            "empirical_significant": true
+          },
+          "mean_rank": {
+            "real": 60.462864,
+            "noise": 56.836384,
+            "diff": 3.62648,
+            "empirical_threshold": 3.0,
+            "empirical_significant": true
+          }
+        }
+      },
+      "diagnosis": {
+        "model": "glim",
+        "diagnosis": "B",
+        "conclusion": "学到 EEG 统计特性，但未学到跨模态对应",
+        "real_vs_gaussian_significant": true,
+        "real_vs_shuffle_significant": false,
+        "zero_anomaly": true
+      }
+    }
+  },
+  "combined_diagnosis": {
+    "line_a_conclusion": "在当前表示下，未检测到可检测的句子级语义信息",
+    "line_b_conclusions": {
+      "cet_mae": "学到 EEG 统计特性，但未学到跨模态对应",
+      "eeg_to_text": "编码器完全无效，未从 EEG 学到任何信息",
+      "eeg2text": "编码器完全无效，未从 EEG 学到任何信息",
+      "glim": "学到 EEG 统计特性，但未学到跨模态对应"
+    },
+    "note": "在当前表示下的条件性结论，详见 contrast_experiment_spec.md"
+  }
+}

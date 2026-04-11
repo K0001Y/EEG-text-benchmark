@@ -44,7 +44,7 @@ for _p in [BENCH_DIR, EEG2TEXT_DIR]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from data_processing.dataset import UnifiedDataset, custom_collate_fn
+from data_processing.dataset import UnifiedDataset, custom_collate_fn, _generate_derangement
 from utils.logging_utils import setup_logging, get_logger
 from wrappers.eeg2text_wrapper import EEG2TextWrapper
 
@@ -58,6 +58,7 @@ SPECTRO_PICKLE_PATHS = {
 
 MAX_RAW_LEN = 24000   # BrainTranslator shallownet 期望的时间步数
 RAW_CHANNELS = 105    # EEG 通道数
+NOISE_TYPES = ("real", "gaussian", "shuffle", "zero")
 
 
 def parse_args():
@@ -66,6 +67,8 @@ def parse_args():
     p.add_argument("--model-checkpoint", required=True)
     p.add_argument("--output-dir", required=True)
     p.add_argument("--phase", default="test")
+    p.add_argument("--noise-type", default="real", choices=NOISE_TYPES,
+                   help="噪声条件: real(默认)/gaussian/shuffle/zero")
     p.add_argument("--eeg-batch-size", type=int, default=16)
     p.add_argument("--text-batch-size", type=int, default=64)
     return p.parse_args()
@@ -125,14 +128,33 @@ def raw_to_tensor(raw: np.ndarray) -> torch.Tensor:
 
 
 def encode_eegs(brain_translator, raw_list: List[Optional[np.ndarray]],
-                device, bs=16, logger=None) -> torch.Tensor:
-    """BrainTranslator.forward → mean_pool → L2 normalize → (N, 1024)"""
+                device, bs=16, logger=None,
+                noise_type: str = "real", noise_seed: int = 42) -> torch.Tensor:
+    """BrainTranslator.forward → mean_pool → L2 normalize → (N, 1024)
+
+    三层架构实现层：在编码阶段应用噪声（与 UnifiedDataset 协调层种子策略一致）。
+    - gaussian: 使用 seed=noise_seed+idx 生成 N(0,1) 噪声替代 rawData
+    - zero: 全零张量替代 rawData
+    - real/shuffle: 使用真实数据（shuffle 在收集阶段已重排）
+    """
     vecs = []
     total_batches = (len(raw_list) + bs - 1) // bs
     for i in range(0, len(raw_list), bs):
         batch_raw = raw_list[i: i + bs]
-        tensors = [raw_to_tensor(r) if r is not None else torch.zeros(MAX_RAW_LEN, RAW_CHANNELS)
-                   for r in batch_raw]
+        tensors = []
+        for j, r in enumerate(batch_raw):
+            sample_idx = i + j
+            if noise_type == "zero":
+                tensors.append(torch.zeros(MAX_RAW_LEN, RAW_CHANNELS))
+            elif noise_type == "gaussian":
+                rng = np.random.default_rng(noise_seed + sample_idx)
+                noise = rng.normal(0.0, 1.0, (MAX_RAW_LEN, RAW_CHANNELS)).astype(np.float32)
+                tensors.append(torch.from_numpy(noise))
+            else:  # real 或 shuffle（shuffle 已在收集阶段重排）
+                if r is not None:
+                    tensors.append(raw_to_tensor(r))
+                else:
+                    tensors.append(torch.zeros(MAX_RAW_LEN, RAW_CHANNELS))
         eeg = torch.stack(tensors).to(device)   # (B, 24000, 105)
         with torch.no_grad():
             emb = brain_translator(eeg)          # (B, 957, 1024)
@@ -197,17 +219,29 @@ def grouped_metrics(eeg_vecs, text_vecs, gt_idx, meta_list, ks=(1, 5, 10)):
 
 def main():
     args = parse_args()
-    os.makedirs(args.output_dir, exist_ok=True)
-    logger = setup_logging(args.output_dir, log_name="retrieval_eval.log")
+    # 噪声条件自动添加输出目录后缀
+    output_dir = args.output_dir
+    if args.noise_type != "real":
+        output_dir = f"{output_dir.rstrip('/')}_{args.noise_type}"
+    os.makedirs(output_dir, exist_ok=True)
+    logger = setup_logging(output_dir, log_name="retrieval_eval.log")
     logger.info("EEG2Text Retrieval Eval | args=%s", vars(args))
 
     # 1. 数据集
     ds = UnifiedDataset(args.data_path, phase=args.phase)
-    logger.info("Dataset: %d samples (phase=%s)", len(ds), args.phase)
+    logger.info("Dataset: %d samples (phase=%s, noise=%s)",
+                len(ds), args.phase, args.noise_type)
 
-    # 2. 构建 rawData 查找表
+    # 2. 构建 rawData 查找表（对于 gaussian/zero 仍需查找表以确定样本索引）
     logger.info("Building spectro pickle lookup table...")
     lut = build_lookup_table(logger)
+
+    # 协调层：shuffle 时查询 UnifiedDataset 的权威 permutation
+    shuffle_perm = None
+    if args.noise_type == "shuffle":
+        # 生成与 UnifiedDataset 一致的 derangement
+        shuffle_perm = _generate_derangement(len(ds), seed=42)
+        logger.info("Shuffle mode: using derangement permutation (seed=42)")
 
     # 3. 加载模型
     logger.info("Loading EEG2TextWrapper...")
@@ -227,6 +261,8 @@ def main():
 
     ref_texts, meta_list, raw_list = [], [], []
     miss_count = 0
+    # 收集所有样本的 rawData
+    all_raw_data = []  # 用于 shuffle 重排
     for batch in dl:
         for i in range(len(batch["idx"])):
             meta = dict(batch["meta"][i])
@@ -237,7 +273,14 @@ def main():
             raw = lut.get(key)
             if raw is None:
                 miss_count += 1
-            raw_list.append(raw)
+            all_raw_data.append(raw)
+
+    # 三层架构实现层：shuffle 时按协调层 permutation 重排 rawData
+    if shuffle_perm is not None:
+        raw_list = [all_raw_data[shuffle_perm[i]] for i in range(len(all_raw_data))]
+        logger.info("Applied shuffle permutation to raw_list")
+    else:
+        raw_list = all_raw_data
 
     if miss_count:
         logger.warning("Missing rawData for %d/%d samples (using zeros)", miss_count, len(raw_list))
@@ -255,10 +298,11 @@ def main():
                              bs=args.text_batch_size, logger=logger)
     logger.info("text_vecs: %s", tuple(text_vecs.shape))
 
-    # 6. 编码 EEG
-    logger.info("Encoding %d EEGs (bs=%d)...", N, args.eeg_batch_size)
+    # 6. 编码 EEG（三层架构实现层：在编码阶段应用噪声）
+    logger.info("Encoding %d EEGs (bs=%d, noise=%s)...", N, args.eeg_batch_size, args.noise_type)
     eeg_vecs = encode_eegs(brain_translator, raw_list, device,
-                            bs=args.eeg_batch_size, logger=logger)
+                            bs=args.eeg_batch_size, logger=logger,
+                            noise_type=args.noise_type, noise_seed=42)
     logger.info("eeg_vecs: %s", tuple(eeg_vecs.shape))
 
     # 7. 计算指标
@@ -276,7 +320,7 @@ def main():
 
     # 8. 保存
     result = {"overall": overall, "grouped": grp}
-    out_path = os.path.join(args.output_dir, "retrieval_metrics.json")
+    out_path = os.path.join(output_dir, "retrieval_metrics.json")
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 

@@ -1,0 +1,43 @@
+{
+  "cosine_similarity": {
+    "same_sent_diff_subj": {
+      "count": 13990,
+      "mean": 0.579848,
+      "std": 0.198972,
+      "median": 0.62371
+    },
+    "same_subj_diff_sent": {
+      "count": 76976,
+      "mean": 0.805207,
+      "std": 0.129294,
+      "median": 0.835159
+    },
+    "diff_sent_diff_subj": {
+      "count": 1634121,
+      "mean": 0.5722,
+      "std": 0.203663,
+      "median": 0.617686
+    },
+    "ranking": [
+      "same_subj_diff_sent",
+      "same_sent_diff_subj",
+      "diff_sent_diff_subj"
+    ]
+  },
+  "eta_squared": {
+    "eta2_sentence": {
+      "mean": 0.091379,
+      "median": 0.069725,
+      "std": 0.058487
+    },
+    "eta2_subject": {
+      "mean": 0.478903,
+      "median": 0.481344,
+      "std": 0.131222
+    },
+    "n_features": 840,
+    "n_sentences": 130,
+    "n_subjects": 30,
+    "conclusion": "subject_dominant"
+  }
+}

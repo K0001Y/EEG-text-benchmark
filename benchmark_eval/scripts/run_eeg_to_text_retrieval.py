@@ -48,12 +48,17 @@ from utils.logging_utils import setup_logging, get_logger
 from wrappers.eeg_to_text_wrapper import EEGToTextWrapper
 
 
+NOISE_TYPES = ("real", "gaussian", "shuffle", "zero")
+
+
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--data-path", required=True)
     p.add_argument("--model-checkpoint", required=True)
     p.add_argument("--output-dir", required=True)
     p.add_argument("--phase", default="test")
+    p.add_argument("--noise-type", default="real", choices=NOISE_TYPES,
+                   help="噪声条件: real(默认)/gaussian/shuffle/zero")
     p.add_argument("--model-type", default="bart", choices=["bart", "t5"])
     p.add_argument("--eeg-batch-size", type=int, default=32)
     p.add_argument("--text-batch-size", type=int, default=64)
@@ -147,13 +152,25 @@ def grouped_metrics(eeg_vecs, text_vecs, gt_idx, meta_list, ks=(1, 5, 10)):
 
 def main():
     args = parse_args()
-    os.makedirs(args.output_dir, exist_ok=True)
-    logger = setup_logging(args.output_dir, log_name="retrieval_eval.log")
+    # 噪声条件自动添加输出目录后缀
+    output_dir = args.output_dir
+    if args.noise_type != "real":
+        output_dir = f"{output_dir.rstrip('/')}_{args.noise_type}"
+    os.makedirs(output_dir, exist_ok=True)
+    logger = setup_logging(output_dir, log_name="retrieval_eval.log")
     logger.info("EEG-To-Text Retrieval Eval | args=%s", vars(args))
 
-    # 1. 数据集
-    ds = UnifiedDataset(args.data_path, phase=args.phase)
-    logger.info("Dataset: %d samples (phase=%s)", len(ds), args.phase)
+    # 1. 数据集（根据噪声条件配置）
+    ds_kwargs = dict(data_path=args.data_path, phase=args.phase)
+    if args.noise_type == "gaussian":
+        ds_kwargs.update(noise_mode=True, noise_type="gaussian")
+    elif args.noise_type == "zero":
+        ds_kwargs.update(noise_mode=True, noise_type="zero")
+    elif args.noise_type == "shuffle":
+        ds_kwargs.update(shuffle_mode=True)
+    ds = UnifiedDataset(**ds_kwargs)
+    logger.info("Dataset: %d samples (phase=%s, noise=%s)",
+                len(ds), args.phase, args.noise_type)
 
     # 2. 加载模型（复用现有 Wrapper）
     logger.info("Loading EEGToTextWrapper...")
@@ -218,7 +235,7 @@ def main():
 
     # 7. 保存
     result = {"overall": overall, "grouped": grp}
-    out_path = os.path.join(args.output_dir, "retrieval_metrics.json")
+    out_path = os.path.join(output_dir, "retrieval_metrics.json")
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 

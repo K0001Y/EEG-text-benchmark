@@ -105,7 +105,9 @@
   - 生成参数已整合到 `eval_config.yaml`
   - 统一 `Config` 类层级管理待实现
 
-- [ ] **A-3: 噪声控制实验支持不完整**（未处理）
+- [ ] **A-3: 噪声控制实验支持不完整**（已实现）
+  - `dataset.py` 新增 `noise_type="zero"` 和 `shuffle_mode` 支持
+  - 四个检索脚本均已添加 `--noise-type {real,gaussian,shuffle,zero}` 参数
 
 - [x] **A-4: 评估输出 schema 不统一**（已修复）
   - `eval_runner.py` 统一输出 `"overall"` + `"grouped"` + `"failed_count"` + `"num_samples"` schema
@@ -161,9 +163,10 @@
 
 ## 七、随机噪声测试方案
 
-- [ ] **N-1: 实现基线噪声测试（Gaussian / Uniform / Shuffle / Zero）**（部分）
-  - `dataset.py` 已支持 gaussian / uniform 噪声模式
-  - zero / shuffle 噪声待实现（将在 NC-1 中统一实现）
+- [x] **N-1: 实现基线噪声测试（Gaussian / Uniform / Shuffle / Zero）**（已完成）
+  - `dataset.py` 支持 gaussian / uniform / zero 噪声模式
+  - `dataset.py` 新增 shuffle_mode（全局 derangement）
+  - 四个检索脚本统一 `--noise-type` 接口
 - [ ] **N-2: 实现进阶噪声测试（频段掩码 / 时间掩码 / 渐进噪声）**
 - [ ] **N-3: 噪声测试结果输出标准化**
 
@@ -186,22 +189,22 @@
 - [ ] **DV-2-band: 频带级 η² 分析**（v2 新增，对 8 个频带分别计算 η²_sentence vs η²_subject，输出效应量对比图）
 - [ ] **DV-3: 去被试化信号恢复验证**（被试内 z-score + 被试聚合检索，v2 修正数据泄漏：仅在 train 集计算 μ/σ）
 
-**实施**：创建 `benchmark_eval/scripts/validate_eeg_signal.py`，输出到 `benchmark_eval/test_outputs/dataset_validity/`
+**实施**：已创建 `benchmark_eval/scripts/validate_eeg_signal.py`，输出到 `benchmark_eval/test_outputs/dataset_validity/`
 
 ### 诊断线 B：噪声对照实验（需 GPU，三层统一架构）
 
-- [ ] **NC-1: 扩展 dataset.py 噪声类型和 Shuffle 支持**
+- [x] **NC-1: 扩展 dataset.py 噪声类型和 Shuffle 支持**
   - 新增 `noise_type="zero"` 分支（全零张量替代 EEG）
   - 新增 `shuffle_mode` 支持，实现全局 derangement（无不动点 permutation）
   - `UnifiedDataset` 作为协调层，生成权威 permutation 和种子序列
-- [ ] **NC-2: 为检索脚本添加统一噪声接口**
+- [x] **NC-2: 为检索脚本添加统一噪声接口**
   - 所有脚本新增 `--noise-type {real,gaussian,shuffle,zero}` 参数
   - CET-MAE/EEG-To-Text/GLIM：在 `UnifiedDataset` 数据加载时应用噪声
   - EEG2Text：查询 `UnifiedDataset` 的 permutation，在编码阶段应用（三层架构实现层适配）
   - 输出目录自动添加后缀（`_gaussian` / `_shuffle` / `_zero`）
 - [ ] **NC-3: 运行 4 模型 × 3 噪声条件 = 12 组实验**
 - [ ] **NC-4: 生成综合对比分析报告**
-  - 创建 `benchmark_eval/scripts/compare_contrast_results.py`
+  - 已创建 `benchmark_eval/scripts/compare_contrast_results.py`
   - 读取诊断线 A 全部结果 + 诊断线 B 的 16 个 `retrieval_metrics.json`
   - v2 新增统计检验：置换检验 p-value、Bootstrap 95% CI、Cohen's d 效应量
   - 输出到 `benchmark_eval/test_outputs/contrast_summary.json`
@@ -221,9 +224,9 @@
 | **Phase 6** | D-1~D-5（数据处理流程优化） | 已完成 |
 | **Phase 7** | N-1~N-3（噪声测试实现） | 部分完成 |
 | **Phase 8** | R-1~R-3（检索测试实现） | 已完成 |
-| **Phase 9a** | DV-1a/b/c + DV-2 + DV-2-band（数据有效性验证，CPU ~10min） | 待实现 |
-| **Phase 9b** | NC-1~NC-2（噪声/Shuffle 支持开发，三层架构） | 待实现 |
-| **Phase 9c** | NC-3~NC-5（运行实验 + 综合分析报告） | 待实现 |
+| **Phase 9a** | DV-1a/b/c + DV-2 + DV-2-band（数据有效性验证，CPU ~10min） | 脚本已创建 |
+| **Phase 9b** | NC-1~NC-2（噪声/Shuffle 支持开发，三层架构） | 已完成 |
+| **Phase 9c** | NC-3~NC-5（运行实验 + 综合分析报告） | 脚本已创建，待运行 |
 
 > **注意**：代码修改完成后，需要重新运行 `build_unified_dataset.py` 重新构建 `unified_zuco.pkl`，
 > 才能使 D-1（spectrogram 格式）和 D-2（字段重命名）生效。

@@ -24,7 +24,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from constants import SPECTRO_STEPS, SPECTRO_FREQS
+from constants import SPECTRO_STEPS, SPECTRO_FREQS, DEFAULT_SEED
 
 
 def custom_collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -96,11 +96,41 @@ class UnifiedSample:
     mask_eeg2text: Optional[Any] = None
 
 
+def _generate_derangement(n: int, seed: int = DEFAULT_SEED) -> np.ndarray:
+    """生成长度为 n 的完全错位排列（derangement）。
+
+    保证 perm[i] != i 对所有 i 成立，即没有不动点。
+    用于 shuffle 对照实验，确保每个 EEG 样本配对到不同的文本。
+    """
+    rng = np.random.default_rng(seed)
+    perm = np.arange(n)
+    for _ in range(1000):  # 最多重试 1000 次
+        rng.shuffle(perm)
+        if np.all(perm != np.arange(n)):
+            return perm
+    # 兜底：如果随机 shuffle 未产生 derangement，手动修正不动点
+    identity = np.arange(n)
+    fixed = np.where(perm == identity)[0]
+    for i in fixed:
+        # 与下一个非不动点位置交换
+        j = (i + 1) % n
+        while perm[j] == j:
+            j = (j + 1) % n
+        perm[i], perm[j] = perm[j], perm[i]
+    return perm
+
+
 class UnifiedDataset(Dataset):
     """Dataset over a unified EEG-text benchmark pickle file.
 
     支持新（v2）和旧（v1）字段命名，自动回退。
     支持噪声模式（noise_mode=True）用于对照实验。
+    支持 shuffle 模式（shuffle_mode=True）打乱 EEG-文本配对。
+
+    三层噪声架构（协调层）：
+      - 本类作为协调层，生成权威 permutation 和种子序列
+      - CET-MAE/EEG-To-Text/GLIM 在数据加载时直接应用
+      - EEG2Text 通过查询 shuffle_perm 属性，在编码阶段应用
     """
 
     def __init__(
@@ -109,19 +139,23 @@ class UnifiedDataset(Dataset):
         phase: Optional[str] = None,
         noise_mode: bool = False,
         noise_type: str = "gaussian",
-        noise_seed: int = 42,
+        noise_seed: int = DEFAULT_SEED,
         noise_mean: float = 0.0,
         noise_std: float = 1.0,
+        shuffle_mode: bool = False,
+        shuffle_seed: int = DEFAULT_SEED,
     ):
         """
         Args:
-            data_path:   统一数据集 pickle 文件路径
-            phase:       按 phase 过滤（"train"/"val"/"test"），None 表示全部
-            noise_mode:  True 时返回随机噪声替代真实 EEG
-            noise_type:  噪声类型（"gaussian" 或 "uniform"）
-            noise_seed:  噪声随机种子（保证跨模型对比公平）
-            noise_mean:  高斯噪声均值
-            noise_std:   高斯噪声标准差（均匀噪声时为半宽度）
+            data_path:    统一数据集 pickle 文件路径
+            phase:        按 phase 过滤（"train"/"val"/"test"），None 表示全部
+            noise_mode:   True 时返回随机噪声替代真实 EEG
+            noise_type:   噪声类型（"gaussian", "uniform", "zero"）
+            noise_seed:   噪声随机种子（保证跨模型对比公平）
+            noise_mean:   高斯噪声均值
+            noise_std:    高斯噪声标准差（均匀噪声时为半宽度）
+            shuffle_mode: True 时打乱 EEG-文本配对（derangement）
+            shuffle_seed: shuffle 随机种子（保证跨模型一致）
         """
         if not os.path.isfile(data_path):
             raise FileNotFoundError(f"Unified dataset file not found: {data_path}")
@@ -172,14 +206,57 @@ class UnifiedDataset(Dataset):
         self.noise_seed = noise_seed
         self.noise_mean = noise_mean
         self.noise_std = noise_std
+        self.shuffle_mode = shuffle_mode
+        self.shuffle_seed = shuffle_seed
         self.data_path = data_path
 
+        # 协调层：生成权威 shuffle permutation
+        # EEG2Text 等外部脚本可查询 self.shuffle_perm 获取相同排列
+        if shuffle_mode:
+            self.shuffle_perm = _generate_derangement(len(self.samples), seed=shuffle_seed)
+            self._apply_shuffle()
+        else:
+            self.shuffle_perm = None
+
+    def _apply_shuffle(self):
+        """应用 shuffle：按 derangement 重排所有样本的 EEG 字段。
+
+        文本标签不动，仅 EEG 数据发生位移。
+        这是协调层的核心操作，保证跨模型一致性。
+        """
+        perm = self.shuffle_perm
+        n = len(self.samples)
+        # 收集所有样本的 EEG 相关字段
+        eeg_fields = [
+            "eeg", "eeg_word_raw", "eeg_word_norm1d", "eeg_word_norm2d",
+            "sent_eeg_raw", "eeg_spectro", "mask_word", "mask_word_with_sent",
+            "mask_spectro", "eeg_raw", "eeg_normalized_1d", "eeg_normalized_2d",
+            "eeg_eeg2text", "mask_with_sent", "mask_eeg2text",
+        ]
+        # 按 permutation 重排 EEG 字段（文本保持原位）
+        for field_name in eeg_fields:
+            orig_values = [getattr(self.samples[i], field_name) for i in range(n)]
+            for i in range(n):
+                setattr(self.samples[i], field_name, orig_values[perm[i]])
+        # 同步重排 mask 默认字段
+        orig_masks = [self.samples[i].mask for i in range(n)]
+        for i in range(n):
+            self.samples[i].mask = orig_masks[perm[i]]
+
     def _generate_noise_eeg(self, sample: UnifiedSample, idx: int) -> Dict[str, np.ndarray]:
-        """为所有 EEG 字段生成固定 seed 的随机噪声，shape 与真实数据一致。"""
+        """为所有 EEG 字段生成固定 seed 的随机噪声，shape 与真实数据一致。
+
+        支持三种噪声类型：
+          - gaussian: N(mean, std) 随机信号
+          - uniform:  U(-std, std) 随机信号
+          - zero:     全零张量（用于排除模型 bias/shortcut 依赖）
+        """
         rng = np.random.default_rng(self.noise_seed + idx)
 
         def _noise(shape):
-            if self.noise_type == "gaussian":
+            if self.noise_type == "zero":
+                return np.zeros(shape, dtype=np.float32)
+            elif self.noise_type == "gaussian":
                 return rng.normal(self.noise_mean, self.noise_std, shape).astype(np.float32)
             else:  # uniform
                 return rng.uniform(-self.noise_std, self.noise_std, shape).astype(np.float32)
@@ -205,7 +282,9 @@ class UnifiedDataset(Dataset):
         if sample.mask_word_with_sent is not None:
             shape0 = np.asarray(sample.mask_word_with_sent).shape[0]
             result["mask_word_with_sent"] = np.ones(shape0, dtype=np.float32)
-            result["eeg_word_norm2d"] = _noise(np.asarray(sample.eeg_word_norm2d or sample.eeg).shape)
+            norm2d = sample.eeg_word_norm2d if sample.eeg_word_norm2d is not None else sample.eeg
+            if norm2d is not None:
+                result["eeg_word_norm2d"] = _noise(np.asarray(norm2d).shape)
 
         # v2 spectrogram 字段（EEG2Text）
         spectro = sample.eeg_spectro
