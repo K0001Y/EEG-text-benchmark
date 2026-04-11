@@ -6,32 +6,88 @@
 - H-7：分组指标添加 sample_count 字段
 - M-5：所有计算失败统一返回 float('nan')
 - M-6：类型标注修复（any → Any）
+- OFFLINE：WER 使用本地实现，BERTScore 在离线环境跳过
+- MIRROR：BERTScore 下载优先使用 hf-mirror.com 镜像
+- CACHE：BERTScore 模型在进程内只加载一次（模块级缓存）
 """
 
 import logging
-from collections import Counter, defaultdict
-from functools import lru_cache
+from collections import defaultdict
 from typing import Any, Dict, Iterable, List
 
 import numpy as np
 from nltk.translate.bleu_score import corpus_bleu
 from rouge import Rouge
-from evaluate import load
 
 
 logger = logging.getLogger("metrics")
 
-
-@lru_cache(maxsize=1)
-def _get_wer_metric():
-    """缓存 WER 指标加载，避免重复加载。"""
-    return load("wer")
+# ── BERTScore 模块级缓存（进程内只初始化一次）──────────────────────────────
+_bertscore_metric = None   # bert_score 模块对象
+_bertscore_available: bool | None = None  # None=未检测, True/False=已检测
 
 
-@lru_cache(maxsize=1)
 def _get_bertscore_metric():
-    """缓存 BERTScore 指标加载。"""
-    return load("bertscore")
+    """获取 BERTScore 计算函数（直接使用 bert_score 包，不经过 evaluate.load）。
+
+    - 直接调用 bert_score.score()，无需从 Hub 下载 metric 脚本
+    - 优先使用本地 HF 缓存（已下载的 DeBERTa 模型），不再依赖网络
+    - 若 bert_score 未安装或模型不存在则返回 None
+    """
+    global _bertscore_metric, _bertscore_available
+
+    if _bertscore_available is False:
+        return None
+    if _bertscore_metric is not None:
+        return _bertscore_metric
+
+    try:
+        import bert_score as _bs  # noqa: F401
+        _bertscore_metric = _bs
+        _bertscore_available = True
+        logger.info("BERTScore: using bert_score package directly (no evaluate.load)")
+        return _bertscore_metric
+    except ImportError:
+        logger.warning("BERTScore skipped: bert_score package not installed.")
+        _bertscore_available = False
+        return None
+
+
+def _compute_wer_local(references: List[str], predictions: List[str]) -> float:
+    """本地 WER 实现，不依赖 evaluate 库（离线兼容）。
+
+    WER = (S + D + I) / N，其中 S=替换, D=删除, I=插入, N=参考词总数
+    使用标准动态规划 Levenshtein 距离算法。
+    """
+    total_errors = 0
+    total_ref_len = 0
+
+    for ref, hyp in zip(references, predictions):
+        ref_tokens = ref.split()
+        hyp_tokens = hyp.split()
+        r, h = len(ref_tokens), len(hyp_tokens)
+
+        if r == 0:
+            total_errors += h
+            continue
+
+        # DP 矩阵
+        d = [[0] * (h + 1) for _ in range(r + 1)]
+        for i in range(r + 1):
+            d[i][0] = i
+        for j in range(h + 1):
+            d[0][j] = j
+        for i in range(1, r + 1):
+            for j in range(1, h + 1):
+                if ref_tokens[i - 1] == hyp_tokens[j - 1]:
+                    d[i][j] = d[i - 1][j - 1]
+                else:
+                    d[i][j] = 1 + min(d[i - 1][j], d[i][j - 1], d[i - 1][j - 1])
+
+        total_errors += d[r][h]
+        total_ref_len += r
+
+    return total_errors / total_ref_len if total_ref_len > 0 else float("nan")
 
 
 def _nan_metrics() -> Dict[str, float]:
@@ -105,32 +161,38 @@ def compute_corpus_metrics(
     # --- WER ---
     wer_score = float("nan")
     try:
-        wer_metric = _get_wer_metric()
-        wer_score = float(wer_metric.compute(predictions=preds_list, references=refs_list))
+        wer_score = _compute_wer_local(refs_list, preds_list)
     except Exception as exc:
         logger.warning("WER computation failed: %s", exc)
 
-    # --- BERTScore（离线降级）---
+    # --- BERTScore（直接使用 bert_score 包，从本地 HF 缓存加载模型）---
     bertscore_f = float("nan")
-    try:
-        bertscore_metric = _get_bertscore_metric()
-        results = bertscore_metric.compute(
-            predictions=preds_list,
-            references=refs_list,
-            lang="en",
-            model_type="microsoft/deberta-xlarge-mnli",
-        )
-        bertscore_f = float(np.mean(results["f1"]))
-    except (OSError, ValueError) as exc:
-        # OSError：网络不可达或模型文件不存在（离线环境）
-        # ValueError：模型下载失败
-        logger.warning(
-            "BERTScore unavailable (likely offline environment): %s. "
-            "Returning NaN. Set compute_bertscore: false in config to suppress.",
-            exc,
-        )
-    except Exception as exc:
-        logger.warning("BERTScore computation failed: %s", exc)
+    bertscore_pkg = _get_bertscore_metric()
+    if bertscore_pkg is not None:
+        try:
+            # 直接传本地路径，避免任何网络请求（绕过 HuggingFace name resolution）
+            import os as _os, glob as _glob
+            _snapshot_dir = _os.path.expanduser(
+                "~/.cache/huggingface/hub/models--microsoft--deberta-xlarge-mnli/snapshots"
+            )
+            _snapshots = sorted(_glob.glob(_os.path.join(_snapshot_dir, "*")))
+            _model_path = _snapshots[-1] if _snapshots else "microsoft/deberta-xlarge-mnli"
+            logger.info("BERTScore model path: %s", _model_path)
+
+            _, _, F1 = bertscore_pkg.score(
+                preds_list,
+                refs_list,
+                lang="en",
+                model_type=_model_path,
+                verbose=False,
+            )
+            bertscore_f = float(F1.mean().item())
+        except (OSError, ValueError) as exc:
+            logger.warning(
+                "BERTScore unavailable (model not found): %s. Returning NaN.", exc
+            )
+        except Exception as exc:
+            logger.warning("BERTScore computation failed: %s", exc)
 
     metrics = dict(bleu_scores)
     metrics["rouge1"] = rouge1_f

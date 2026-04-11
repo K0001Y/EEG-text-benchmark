@@ -74,13 +74,25 @@ class CETMAEWrapper(BenchmarkModelWrapper):
         from transformers import BartTokenizer
 
         if pretrain_path is None:
+            # 优先查找本地目录
             local_path = os.path.join(benchmark_root, "models", "huggingface", "bart-large")
             if os.path.isdir(local_path):
                 pretrain_path = local_path
             else:
-                pretrain_path = "facebook/bart-large"
-                os.environ["HF_HUB_OFFLINE"] = "1"
-                os.environ["TRANSFORMERS_OFFLINE"] = "1"
+                # 查找 HuggingFace 本地缓存（离线环境）
+                hf_cache_base = os.path.expanduser(
+                    "~/.cache/huggingface/hub/models--facebook--bart-large/snapshots"
+                )
+                if os.path.isdir(hf_cache_base):
+                    snapshots = sorted(os.listdir(hf_cache_base))
+                    if snapshots:
+                        pretrain_path = os.path.join(hf_cache_base, snapshots[-1])
+                        logger.info("Using HuggingFace cache: %s", pretrain_path)
+
+                if pretrain_path is None:
+                    pretrain_path = "facebook/bart-large"
+                    os.environ["HF_HUB_OFFLINE"] = "1"
+                    os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
         logger.info("Loading CET-MAE model from %s", model_checkpoint)
         logger.info("Using BART pretrain path: %s", pretrain_path)
