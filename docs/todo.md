@@ -169,9 +169,27 @@
 
 ## 八、检索测试方案
 
-- [ ] **R-1: 扩展 wrapper 基类，新增 encode_eeg_to_embedding / encode_text_to_embedding 接口**
-- [ ] **R-2: 实现检索评估管道**
-- [ ] **R-3: 支持分组检索评估**
+- [x] **R-1: 扩展 wrapper 基类，新增 encode_eeg_to_embedding / encode_text_to_embedding 接口**（已通过独立脚本实现）
+- [x] **R-2: 实现检索评估管道**（已完成四个模型的检索评估）
+- [x] **R-3: 支持分组检索评估**（已支持 by_task / by_subject / by_dataset 分组）
+
+## 九、性能归因对比实验
+
+> 详见 `docs/contrast_experiment_spec.md`
+
+### 诊断线 A：原始数据集有效性验证
+
+- [ ] **DV-1: Linear Probe 上界测试**（sklearn 逻辑回归 130 类分类）
+- [ ] **DV-2: 被试效应 vs 句子效应分析**（余弦相似度分组 + η² 方差分解 + t-SNE 可视化）
+- [ ] **DV-3: 去被试化信号恢复验证**（被试内 z-score + 被试聚合检索）
+
+### 诊断线 B：噪声对照实验
+
+- [ ] **NC-1: 扩展 dataset.py 支持 zero 噪声类型**
+- [ ] **NC-2: 在检索脚本中实现 shuffle/gaussian/zero 噪声注入**（含 EEG2Text 特殊处理）
+- [ ] **NC-3: 运行 4 模型 × 3 噪声条件 = 12 组实验**
+- [ ] **NC-4: 生成综合对比分析报告（contrast_summary.json）**
+- [ ] **NC-5: 根据双诊断线决策树得出归因结论，更新文档**
 
 ---
 
@@ -186,7 +204,8 @@
 | **Phase 5** | O-1, O-2（异常现象定位与修复） | 待排查 |
 | **Phase 6** | D-1~D-5（数据处理流程优化） | 已完成 |
 | **Phase 7** | N-1~N-3（噪声测试实现） | 部分完成 |
-| **Phase 8** | R-1~R-3（检索测试实现） | 待实现 |
+| **Phase 8** | R-1~R-3（检索测试实现） | 已完成 |
+| **Phase 9** | NC-1~NC-5（噪声对照归因实验） | 待实现 |
 
 > **注意**：代码修改完成后，需要重新运行 `build_unified_dataset.py` 重新构建 `unified_zuco.pkl`，
 > 才能使 D-1（spectrogram 格式）和 D-2（字段重命名）生效。
