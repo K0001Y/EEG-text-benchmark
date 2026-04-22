@@ -37,13 +37,40 @@ Jo et al. (2025) 在 *Evaluating EEG-to-text models through noise-based performa
 
 ArXiv:2603.03312 (*Escaping the BLEU Trap: A Signal-Grounded Framework with Decoupled Semantic Guidance for EEG-to-Text Decoding*) 正式提出将 **$R_{diff} = R_{real} - R_{noise}$** 作为模型有效性的金标准，与本研究的噪声对照实验逻辑完全吻合。
 
-#### 1.2.4 被试身份特征研究
+#### ZuCo数据集
+根据ZuCo数据集论文的描述，其EEG数据的采样与划分主要体现在以下几个维度：
 
-*Deep Learning-Based Subject Identification using EEG Signals from the ZuCo Dataset* (arXiv:2105.10931) 证实了 EEG 信号中的身份信息极其稳定：在特征空间中，同一被试读 100 句不同话的距离，远小于两个被试读同一句话的距离。这为本研究的被试效应分析提供了理论支撑。
+##### 1. EEG 采样与采集细节 (Sampling & Acquisition)
+**采样率**：高密度EEG数据以 **500 Hz** 的采样率进行记录 。
+**频带范围**：采集时的硬件带通滤波范围为 **0.1 至 100 Hz** 。
+**通道配置**：使用 **128通道** 的 EEG Geodesic Hydrocel 系统进行记录 。在数据分析中，选择了 **105个通道** 用于头皮记录，**9个通道** 用于眼电信号（EOG）伪迹去除，其余位于颈部和面部的通道被剔除 。
+**阻抗控制**：电极阻抗在记录前保持在 **40 kOhm** 以下，且每录制约30分钟会重新检查一次 。
 
-#### 1.2.5 词级特征与频域缺陷
+##### 2. 任务维度划分 (Task Splitting)
+数据按三个不同的阅读任务进行划分，共计 1107 个句子 [cite: 13, 136]：
+**任务 1 (Task 1)**：正常阅读（情感分析），包含来自电影评论的 **400 个句子**（正向、负向或中性） 
+**任务 2 (Task 2)**：正常阅读（维基百科），包含含有特定语义关系的 **300 个句子** [cite: 52, 117, 134]。
+**任务 3 (Task 3)**：任务特定阅读（维基百科关系抽取），包含 **407 个句子**，受试者需有目的地寻找特定的关系类型 [cite: 52, 118, 135, 242]。
 
-*An Exploration of Word-level EEG Representation for Language Decoding* (arXiv:2205.01174) 分析了 Mean-pooling 导致语义判别力丢失的机制，建议在 ZuCo 上使用原始序列（Raw Signal）以保留 N400 等关键成分。
+##### 3. 受试者与实验阶段划分 (Subject & Session Splitting)
+*  **受试者划分**：数据来自 **12名** 健康的、以英语为母语的成年受试者 [cite: 12]。
+*  **阶段划分 (Sessions)**：每位参与者在 **两个阶段**（Sessions）内完成所有阅读任务，每阶段持续2-3小时 [cite: 257]。
+    *  **第一阶段**：完成任务 2 和任务 1 的前半部分 [cite: 258]。
+    *  **第二阶段**：完成任务 3 和任务 1 的后半部分 [cite: 258]。
+*  **顺序控制**：句子的呈现顺序对所有受试者都是完全一致的 [cite: 258]。
+
+##### 4. 特征提取与频带划分 (Frequency Band Splitting)
+ 在计算震荡功率（Oscillatory power）特征时，EEG信号被划分为以下独立的频带 [cite: 405, 406]：
+*  **Theta**: theta1 (4–6 Hz), theta2 (6.5–8 Hz) [cite: 406]
+*  **Alpha**: alpha1 (8.5–10 Hz), alpha2 (10.5–13 Hz) [cite: 406]
+*  **Beta**: beta1 (13.5–18 Hz), beta2 (18.5–30 Hz) [cite: 406]
+*  **Gamma**: gamma1 (30.5–40 Hz), gamma2 (40–49.5 Hz) [cite: 406]
+
+##### 5. 数据切片与同步划分 (Segmentation)
+*  **同步化**：EEG数据与眼动追踪数据同步，以便进行基于注视点（Fixation）开始时刻的诱发分析 [cite: 400]。
+*  **切片窗口**：选取注视点开始前 **600 ms** 至结束后 **1000 ms**（总计 1600 ms）的时间窗口进行数据分割 [cite: 482]。
+*  **试验划分**：仅保留“第一遍阅读”（first-pass reading）的注视点数据，总计获得 **154,173 条** 试验记录（trials） [cite: 483]。
+
 
 ### 1.3 现有评估方法的关键缺陷
 
