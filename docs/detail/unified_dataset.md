@@ -117,6 +117,22 @@ shape: (840,)
 
 **步骤 4：生成各 EEG 字段**（详见字段说明）
 
+**步骤 4.5：收集词级注视次数（`nfixations_word`）**
+
+对每个有效词记录 `word.nFixations`，padding 位置填 0，生成 shape `(MAX_LEN,)` 的浮点数组：
+
+```python
+nfixations = [float(word.nFixations) for word in valid_words[:max_len]]
+nfixations += [0.0] * (max_len - len(nfixations))
+record["nfixations_word"] = np.array(nfixations, dtype=np.float32)  # (56,)
+```
+
+该字段供 A1b Duration-Weighted Pool 计算注视时长权重：
+
+$$w_{i,t} = \frac{\text{nfixations\_word}_{i,t}}{\sum_{t'=1}^{T_i} \text{nfixations\_word}_{i,t'}}$$
+
+> **注**：ZuCo v1 有效词均已过滤 `nFixations > 0`，因此有效位的值均 ≥ 1；padding 位为 0，计算权重时需用 mask 截取有效长度 $T_i$。
+
 **步骤 5：构造 spectrogram（可选）**
 
 从 `rawData`（句子原始时序，shape `(105, T)`）计算 spectrogram：
@@ -186,6 +202,7 @@ unified_zuco.pkl
 | `mask_word` | `List[float]` | `(56,)` | 词级有效 mask（1=有效，0=padding）| EEG-To-Text、诊断实验 |
 | `mask_word_with_sent` | `List[float]` | `(56,)` | 含句级 token 的 mask | CET-MAE |
 | `mask_spectro` | `np.ndarray[float32]` | `(374,)` | Spectrogram mask（全 1）| EEG2Text |
+| `nfixations_word` | `np.ndarray[float32]` | `(56,)` | 每词注视次数（`nFixations`），padding 位为 0 | 诊断实验 A1b |
 | `eeg` | `np.ndarray[float32]` | `(56, 840)` | `eeg_word_norm1d` 的别名（向后兼容）| 旧代码 |
 | `mask` | `List[float]` | `(56,)` | `mask_word` 的别名（向后兼容）| 旧代码 |
 | `input_text` | `str` | — | 句子文本（模型输入，与 `reference_text` 相同）| 所有模型 |
@@ -329,4 +346,5 @@ ds_shuffle = UnifiedDataset(
 | EEG2Text | `eeg_spectro` | `mask_spectro` |
 | CET-MAE | `eeg_word_norm2d`、`sent_eeg_raw` | `mask_word_with_sent` |
 | GLIM | `eeg_word_norm1d`（经 wrapper 重采样至 1280 步、128 维）| `mask_word` |
-| 诊断实验线 A | `eeg_word_norm1d`（= `eeg`）| `mask_word`（= `mask`）|
+| 诊断实验线 A（A1a/A1c）| `eeg_word_norm1d`（= `eeg`）、`sent_eeg_raw` | `mask_word`（= `mask`）|
+| 诊断实验线 A（A1b）| `eeg_word_norm1d` + `nfixations_word`（注视时长加权）| `mask_word` |

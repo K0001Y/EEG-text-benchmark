@@ -6,6 +6,7 @@
   eeg_word_norm2d      词+句全局 2D z-score 归一化，(MAX_LEN, 840)
   sent_eeg_raw         句级 EEG，单独存储，(840,)
   eeg_spectro          EEG2Text spectrogram，(SPECTRO_STEPS, SPECTRO_FREQS)
+  nfixations_word      词级注视次数，(MAX_LEN,)
   mask_word            词级 mask，(MAX_LEN,)
   mask_word_with_sent  含句级 token 的 mask，(MAX_LEN,)
   mask_spectro         spectrogram mask，(SPECTRO_STEPS,)
@@ -64,6 +65,7 @@ class UnifiedSample:
       eeg_word_norm2d      global 2D z-score normalized (with sentence EEG), (MAX_LEN, 840)
       sent_eeg_raw         sentence-level EEG, (840,)
       eeg_spectro          spectrogram for EEG2Text, (SPECTRO_STEPS, SPECTRO_FREQS)
+      nfixations_word      word-level fixation counts, (MAX_LEN,)
       mask_word            word-level mask (1=valid, 0=padding), (MAX_LEN,)
       mask_word_with_sent  mask including sentence token, (MAX_LEN,)
       mask_spectro         spectrogram mask, (SPECTRO_STEPS,)
@@ -83,6 +85,7 @@ class UnifiedSample:
     eeg_word_norm2d: Optional[Any] = None
     sent_eeg_raw: Optional[Any] = None
     eeg_spectro: Optional[Any] = None
+    nfixations_word: Optional[Any] = None
     mask_word: Optional[Any] = None
     mask_word_with_sent: Optional[Any] = None
     mask_spectro: Optional[Any] = None
@@ -184,6 +187,7 @@ class UnifiedDataset(Dataset):
                 eeg_word_norm2d=_get_field(item, "eeg_word_norm2d", "eeg_normalized_2d"),
                 sent_eeg_raw=item.get("sent_eeg_raw"),
                 eeg_spectro=_get_field(item, "eeg_spectro", "eeg_eeg2text"),
+                nfixations_word=item.get("nfixations_word"),
                 mask_word=_get_field(item, "mask_word", "mask"),
                 mask_word_with_sent=_get_field(item, "mask_word_with_sent", "mask_with_sent"),
                 mask_spectro=_get_field(item, "mask_spectro", "mask_eeg2text"),
@@ -229,7 +233,8 @@ class UnifiedDataset(Dataset):
         # 收集所有样本的 EEG 相关字段
         eeg_fields = [
             "eeg", "eeg_word_raw", "eeg_word_norm1d", "eeg_word_norm2d",
-            "sent_eeg_raw", "eeg_spectro", "mask_word", "mask_word_with_sent",
+            "sent_eeg_raw", "eeg_spectro", "nfixations_word",
+            "mask_word", "mask_word_with_sent",
             "mask_spectro", "eeg_raw", "eeg_normalized_1d", "eeg_normalized_2d",
             "eeg_eeg2text", "mask_with_sent", "mask_eeg2text",
         ]
@@ -334,6 +339,8 @@ class UnifiedDataset(Dataset):
             result["eeg_word_norm2d"] = torch.as_tensor(np.asarray(sample.eeg_word_norm2d), dtype=torch.float32)
         if sample.sent_eeg_raw is not None:
             result["sent_eeg_raw"] = torch.as_tensor(np.asarray(sample.sent_eeg_raw), dtype=torch.float32)
+        if sample.nfixations_word is not None:
+            result["nfixations_word"] = torch.as_tensor(np.asarray(sample.nfixations_word), dtype=torch.float32)
         if sample.mask_word is not None:
             result["mask_word"] = torch.as_tensor(np.asarray(sample.mask_word), dtype=torch.float32)
         if sample.mask_word_with_sent is not None:

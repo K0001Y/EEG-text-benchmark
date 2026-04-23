@@ -99,13 +99,36 @@ $$\mathbf{f}_i^\text{noise} \sim \mathcal{N}(\mathbf{0},\ \mathbf{I}_{840}), \qu
 
 **评估指标**：Top-1 / Top-5 / Top-10 Accuracy，随机基线 $1/130 \approx 0.77\%$
 
+### 三组信号并行
+
+A1 下的 A1a / A1b / A1c 每种池化方法均对以下**三组信号**各跑一遍，结果并列报告：
+
+| 信号组 | 特征来源 | shape | 说明 |
+|--------|---------|-------|------|
+| **词级 EEG**（主实验）| `eeg_word_norm1d` + mask 截取后 mean-pool / band-sep | `(N, 840)` | 逐词 1D z-score 归一化，只含有眼动注视的词 |
+| **句级 EEG**（新增对照）| `sent_eeg_raw` 逐样本 z-score 归一化 | `(N, 840)` | MAT 文件预计算句级频带均值；ZuCo v2 缺失时用零向量填充 |
+| **高斯噪声**（基线）| $\mathcal{N}(0,1)$，seed = 42 + i | `(N, 840)` | 验证流程无 shortcut |
+
+> **句级 EEG 特征提取**：`sent_eeg_raw` 已是 840 维向量，不需要时间轴池化，直接做逐样本 z-score：
+> $$\mathbf{f}_i^{\text{sent}} = \frac{\mathbf{s}_i - \text{mean}(\mathbf{s}_i)}{\max(\text{std}(\mathbf{s}_i),\ 10^{-8})}$$
+> 因此在 A1a/A1b/A1c 三种池化变体下，句级 EEG 的特征值**完全相同**（无池化可做），三种变体结果一致，均标注 `"source": "sent_eeg_raw"`。
+
 ---
 
 ### A1a：Mean-Pool Linear Probe
 
 #### 步骤 1：特征提取
 
-$$X \in \mathbb{R}^{N \times 840}, \quad X_i = \mathbf{f}_i^{\text{mean\_pool}}$$
+三组信号的特征矩阵 $X \in \mathbb{R}^{N \times 840}$ 分别构造如下：
+
+**词级 EEG**：
+$$X_i^{\text{word}} = \frac{1}{T_i}\sum_{t=1}^{T_i} \text{eeg\_word\_norm1d}_{i,t,:}$$
+
+**句级 EEG**：
+$$X_i^{\text{sent}} = \frac{\mathbf{s}_i - \text{mean}(\mathbf{s}_i)}{\max(\text{std}(\mathbf{s}_i),\ 10^{-8})}, \quad \mathbf{s}_i = \text{sent\_eeg\_raw}_i$$
+
+**高斯噪声**：
+$$X_i^{\text{noise}} \sim \mathcal{N}(\mathbf{0},\ \mathbf{I}_{840}), \quad \text{seed}_i = 42 + i$$
 
 #### 步骤 2：LOSO 5 折交叉验证
 
@@ -138,14 +161,18 @@ $$\text{Random Baseline} = \frac{1}{130} \approx 0.77\%$$
 
 #### 结果解读框架
 
+三组信号并列报告，比较关系如下：
+
 | 情况 | 解读 |
 |------|------|
-| EEG-LOSO >> Random & EEG-LOSO >> Noise-LOSO | 句子信号跨被试可泛化，EEG 有效 |
-| EEG-LOSO ≈ Random ≈ Noise-LOSO | 跨被试无法区分句子，EEG 与噪声无差异 |
-| EEG-LOSO ≈ Random 但 >> Noise-LOSO | 流程异常（噪声不应低于 random） |
-| std 很大 | 不同被试间差异显著，被试效应强 |
+| 词级 >> 随机 & 词级 >> 噪声 | 词级注视 EEG 携带跨被试可泛化句子语义 |
+| 句级 >> 随机 & 句级 >> 噪声 | 句级频带均值同样携带句子信号 |
+| 词级 > 句级 | 词级注视过滤（`nFixations > 0`）提升了特征质量 |
+| 词级 ≈ 句级 | 两种粒度信息量相近，注视过滤作用有限 |
+| 句级 ≈ 随机 ≈ 噪声 | 句级信号几乎不携带可区分的句子语义 |
+| std 很大 | 被试效应显著，跨被试泛化困难 |
 
-**噪声对照运行方式**：将相同 LOSO 5 折 CV 流程应用于 $X^\text{noise}$，得到 $\text{Top-K}_\text{Noise}$，与 $\text{Top-K}_\text{EEG}$ 并列报告。
+**三组运行方式**：将相同 LOSO 5 折 CV 流程分别应用于 $X^\text{word}$、$X^\text{sent}$、$X^\text{noise}$，结果以 `"word_eeg"` / `"sent_eeg"` / `"noise"` 三个键并列记录在 JSON 中。
 
 ---
 
@@ -153,7 +180,7 @@ $$\text{Random Baseline} = \frac{1}{130} \approx 0.77\%$$
 
 **状态：未实现（数据缺失），当前 fallback 为 A1a-LOSO 结果**
 
-理论公式：
+理论公式（词级 EEG）：
 
 $$\mathbf{f}_i = \sum_{t=1}^{T_i} w_{i,t} \cdot \text{eeg\_valid}_{i,t,:}, \quad w_{i,t} = \frac{\text{dur}_{i,t}}{\sum_{t'} \text{dur}_{i,t'}}$$
 
@@ -163,15 +190,21 @@ $$\mathbf{f}_i = \sum_{t=1}^{T_i} w_{i,t} \cdot \text{eeg\_valid}_{i,t,:}, \quad
 
 当前输出字段包含 `"status": "fallback_to_mean_pool"` 标记。
 
+> **句级 EEG / 噪声**：与 A1a 完全相同（句级向量无时间轴可加权，噪声无注视时长），三组均 fallback 到 A1a 结果。
+
 ---
 
 ### A1c：Band-Separated Linear Probe
 
-特征提取使用 `band_separated` 变体，其余步骤（LOSO 5 折 CV + 噪声对照）与 A1a 完全相同。
+词级 EEG 特征提取使用 `band_separated` 变体，其余步骤（LOSO 5 折 CV）与 A1a 完全相同：
 
-$$\mathbf{f}_i = \text{flatten}\!\left(\frac{1}{T_i}\sum_{t} \text{eeg\_valid}_{i,t,:}.reshape(8,105)\right)$$
+$$\mathbf{f}_i^{\text{word}} = \text{flatten}\!\left(\frac{1}{T_i}\sum_{t} \text{eeg\_valid}_{i,t,:}.reshape(8,105)\right)$$
 
-> **注**：数值结果与 A1a 完全相同（两者公式等价）。该变体的设计意义在于强调将特征视为 8 个频带的独立贡献，而非混合池化，但在当前实现下无法区分。
+> **注**：词级 `mean_pool` 与 `band_separated` 数值结果完全相同（公式等价），该变体强调将 840 维视为 8 频带 × 105 通道的独立贡献。
+
+> **句级 EEG**：`sent_eeg_raw` 已是 (840,) 向量，reshape 为 (8, 105) 取均值再 flatten 仍等于原向量，结果与 A1a-sent 完全相同，标注 `"note": "band_sep_equiv_to_a1a_for_sent_eeg"`。
+
+> **噪声**：同上，与 A1a-noise 完全相同。
 
 ---
 
@@ -394,7 +427,7 @@ $$\mathbb{E}[r_i^\text{noise}] = \frac{M+1}{2}, \quad \text{R@1}^\text{noise} \a
 
 | 文件 | 内容 |
 |------|------|
-| `linear_probe_results.json` | A1a/A1b/A1c（EEG + Noise 各 5 折结果）、A2 余弦相似度（EEG + Noise）、η² 分析（EEG + Noise）、A3 聚合检索（EEG + Noise）|
+| `linear_probe_results.json` | A1a/A1b/A1c 各含三组（`word_eeg` / `sent_eeg` / `noise`）LOSO 5 折结果、A2 余弦相似度（EEG + Noise）、η² 分析（EEG + Noise）、A3 聚合检索（EEG + Noise）|
 | `band_level_eta_squared.json` | A2-band 每个频带的 η² 结果（EEG）|
 | `subject_effect_analysis.json` | A2 余弦相似度 + η² 的完整字段（EEG）|
 | `tsne_by_*.png` | A2-tSNE 可视化图像 |

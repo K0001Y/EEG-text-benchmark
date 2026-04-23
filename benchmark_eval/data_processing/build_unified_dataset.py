@@ -225,14 +225,17 @@ def build_samples_for_task(
             if "word" not in sent_obj or not sent_obj["word"]:
                 continue
 
-            # 收集词级 EEG 原始向量
+            # 收集词级 EEG 原始向量 + nFixations（同步收集，保证索引对齐）
             word_embeddings_raw: List[torch.Tensor] = []
+            word_nfixations: List[float] = []
             for word in sent_obj["word"]:
                 t = get_word_embedding_eeg_tensor(word, eeg_type=eeg_type, bands=bands, dim=dim)
                 if t is None:
                     word_embeddings_raw = []
+                    word_nfixations = []
                     break
                 word_embeddings_raw.append(t["raw"])
+                word_nfixations.append(float(word.get("nFixations", 0.0)))
 
             if not word_embeddings_raw:
                 continue
@@ -247,6 +250,7 @@ def build_samples_for_task(
             # 截断到 max_len（仅针对词级）
             if num_words > max_len:
                 word_embeddings_raw = word_embeddings_raw[:max_len]
+                word_nfixations = word_nfixations[:max_len]
                 num_words = max_len
 
             # ===== 1. eeg_word_raw：原始词级 EEG，padding 到 max_len =====
@@ -282,6 +286,10 @@ def build_samples_for_task(
             # ===== 4. sent_eeg_raw：句级 EEG 单独存储 =====
             sent_eeg_raw_arr = sent_eeg["raw"].numpy().astype("float32")  # (840,)
 
+            # ===== 4.5. nfixations_word：词级注视次数 =====
+            nfixations_padded = word_nfixations[:max_len] + [0.0] * (max_len - len(word_nfixations[:max_len]))
+            nfixations_word_arr = np.array(nfixations_padded, dtype=np.float32)  # (max_len,)
+
             # ===== 5. mask_word：基于词数，不包含句级 EEG =====
             mask_word = [1.0] * num_words + [0.0] * (max_len - num_words)
 
@@ -295,6 +303,7 @@ def build_samples_for_task(
                 "eeg_word_norm1d": eeg_word_norm1d,     # 逐词 1D 归一化（EEG-To-Text）
                 "eeg_word_norm2d": eeg_word_norm2d,     # 词+句 2D 归一化（CET-MAE）
                 "sent_eeg_raw": sent_eeg_raw_arr,       # 句级 EEG，单独存储
+                "nfixations_word": nfixations_word_arr, # 词级注视次数（诊断实验 A1b）
                 "mask_word": mask_word,                 # 词级 mask
                 "mask_word_with_sent": mask_word_with_sent,  # 含句级的 mask
                 # 向后兼容别名

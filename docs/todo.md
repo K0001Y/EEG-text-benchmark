@@ -178,18 +178,22 @@
 
 ## 九、性能归因对比实验
 
-> 详见 `docs/contrast_experiment_spec.md`（v2 修订版，2026-04-11）
+> 详见 `docs/detail/experiment_A_details.md`（v3 修订版，含三组信号并行规范）
+> 和 `docs/detail/unified_dataset.md`（v3 修订版，含 nfixations_word 字段规范）
 
 ### 诊断线 A：原始数据集有效性验证（CPU，无需 GPU）
 
-- [ ] **DV-1a: Linear Probe — Mean-Pool 基线**（词级 EEG 均值池化 `(840,)` → sklearn LogisticRegression 130 类分类）
-- [ ] **DV-1b: Linear Probe — Duration-Weighted Pool**（v2 新增，按 fixation duration 加权的词级 EEG）
-- [ ] **DV-1c: Linear Probe — Band-Separated**（v2 新增，保持 8 频带结构 `(8,105)` → flatten `(840,)`）
-- [ ] **DV-2: 被试效应 vs 句子效应分析**（余弦相似度分组对比 + η² 方差分解 + t-SNE 多 perplexity 可视化，v2 修正分组策略）
-- [ ] **DV-2-band: 频带级 η² 分析**（v2 新增，对 8 个频带分别计算 η²_sentence vs η²_subject，输出效应量对比图）
-- [ ] **DV-3: 去被试化信号恢复验证**（被试内 z-score + 被试聚合检索，v2 修正数据泄漏：仅在 train 集计算 μ/σ）
+> ⚠️ **代码与规范存在差距，需要对齐后才能运行**（见第十节）
 
-**实施**：已创建 `benchmark_eval/scripts/validate_eeg_signal.py`，输出到 `benchmark_eval/test_outputs/dataset_validity/`
+- [ ] **DV-1a: Linear Probe — Mean-Pool 基线**（三组信号：词级EEG / 句级EEG / 高斯噪声，各跑 LOSO 5折CV）
+- [ ] **DV-1b: Linear Probe — Duration-Weighted Pool**（词级 EEG 用 nfixations_word 加权；句级/噪声 fallback 到 DV-1a 结果）
+- [ ] **DV-1c: Linear Probe — Band-Separated**（词级 band_sep；句级/噪声与 DV-1a 等价）
+- [ ] **DV-2: 被试效应 vs 句子效应分析**（余弦相似度分组对比 + η² 方差分解 + t-SNE 多 perplexity 可视化）
+- [ ] **DV-2-band: 频带级 η² 分析**（对 8 个频带分别计算 η²_sentence vs η²_subject）
+- [ ] **DV-3: 去被试化信号恢复验证**（LOSO框架下per-subject z-score + 被试聚合检索，严格无数据泄漏）
+
+**实施**：`benchmark_eval/scripts/validate_eeg_signal.py`，输出到 `benchmark_eval/test_outputs/dataset_validity/`
+**状态**：脚本已创建但逻辑与 v3 规范不符，需对齐后运行（见第十节实现对齐任务）
 
 ### 诊断线 B：噪声对照实验（需 GPU，三层统一架构）
 
@@ -212,7 +216,75 @@
 
 ---
 
-## 九、建议执行顺序
+## 十、诊断线 A 代码实现对齐（v3 规范）
+
+> 依据：`docs/detail/experiment_A_details.md`（三组信号并行 + LOSO 5折CV）
+> 和 `docs/detail/unified_dataset.md`（nfixations_word 字段）
+> **必须先完成 A-impl-1~3，再运行实验（DV-1a/b/c）**
+
+### 子任务：build_unified_dataset.py
+
+- [ ] **A-impl-1: 新增 nfixations_word 字段**
+  - 文件：`benchmark_eval/data_processing/build_unified_dataset.py`
+  - 在 `build_samples_for_task` 的 record 构造块中，在步骤4（生成EEG字段）之后新增步骤4.5
+  - v1路径：从 `sent_obj["word"]` 中读取已过滤词的 `word_obj["nFixations"]`
+  - v2路径：从 `word_obj["nFixations"]`（`data_dict["nFix"]`）读取（注意v2词已按 `"GD_EEG" in data_dict` 过滤）
+  - 代码：`nfixations = [float(w["nFixations"]) for w in valid_words[:max_len]]`，padding 填 0.0，shape `(max_len,)`，`dtype=np.float32`
+  - 注意：v1 有效词均已过滤 `nFixations > 0`，v2 需确认 `nFix` 字段名
+  - **完成后需重新构建 unified_zuco.pkl**
+
+- [ ] **A-impl-1b: 重新构建 unified_zuco.pkl**
+  - 运行 `python benchmark_eval/data_processing/build_unified_dataset.py --zuco-root ... --output benchmark_eval/data/unified_zuco.pkl`
+  - 验证新字段：从pkl随机采样，确认 `nfixations_word` shape `(56,)` 且有效词位 ≥ 1.0
+
+### 子任务：validate_eeg_signal.py 逻辑重构
+
+- [ ] **A-impl-2: collect_samples 改为只加载 test 集 + 读取 sent_eeg_raw / nfixations_word**
+  - 文件：`benchmark_eval/scripts/validate_eeg_signal.py`
+  - 移除 `collect_train_samples` / `train_data` 分路加载（A1 只用 test 集做 LOSO CV）
+  - 在 `collect_samples` 中额外读取：
+    - `sent_eeg_raw`：`sample["sent_eeg_raw"].numpy()`，shape `(840,)`；缺失时用 `np.zeros(840, dtype=np.float32)`
+    - `nfixations_word`：`sample.get("nfixations_word")`；缺失时为 None
+  - 输出新增字段：`sent_eeg_list`（list of ndarray (840,)）、`nfixations_list`（list of ndarray (56,) or None）
+
+- [ ] **A-impl-3: 实现 LOSO 5折CV 框架**
+  - 文件：`benchmark_eval/scripts/validate_eeg_signal.py`
+  - 引入 `from sklearn.model_selection import StratifiedGroupKFold`
+  - 新函数 `run_loso_linear_probe(X, y, groups, n_classes, variant_name, logger)`：
+    - `StratifiedGroupKFold(n_splits=5).split(X, y, groups)`
+    - 每折：`StandardScaler` fit on train → transform test，`LogisticRegression` fit/predict
+    - 收集 Top-1/5/10，输出均值 ± std
+  - 输出格式：`{"mean_top1": ..., "std_top1": ..., "mean_top5": ..., "std_top5": ..., "mean_top10": ..., "std_top10": ..., "folds": [...]}`
+
+- [ ] **A-impl-4: 实现三组信号特征提取**
+  - 文件：`benchmark_eval/scripts/validate_eeg_signal.py`
+  - **词级 EEG**：已有 `extract_features(eeg_list, "mean_pool"/"band_separated")`，无需改动
+  - **句级 EEG**：新函数 `extract_sent_features(sent_eeg_list)` → 逐样本 z-score，返回 `(N, 840)`
+    - `f = (s - s.mean()) / max(s.std(), 1e-8)` for each `s` in sent_eeg_list
+  - **高斯噪声**：新函数 `generate_noise_features(N, dim=840, base_seed=42)` → `np.random.default_rng(42+i).standard_normal(dim)` for each i
+
+- [ ] **A-impl-5: 重写 A1a/A1b/A1c 入口，三组信号各跑 LOSO 5折**
+  - 文件：`benchmark_eval/scripts/validate_eeg_signal.py`
+  - A1a：三组特征（词级mean_pool / 句级 / 噪声）各调用 `run_loso_linear_probe`
+  - A1b：词级用 nfixations 加权（新函数 `extract_weighted_features(eeg_list, nfix_list)`）；句级和噪声标注 `"status": "fallback_to_a1a"`，直接复用 A1a 结果
+  - A1c：词级用 band_separated；句级和噪声标注 `"note": "band_sep_equiv_to_a1a_for_sent_and_noise"`，复用 A1a 结果
+  - 输出 JSON key 结构：`{"A1a": {"word_eeg": ..., "sent_eeg": ..., "noise": ...}, "A1b": {...}, "A1c": {...}}`
+
+- [ ] **A-impl-6: 修复 A3-LP 的 per-subject 统计泄漏（改为 LOSO fold 内计算）**
+  - 文件：`benchmark_eval/scripts/validate_eeg_signal.py`
+  - 当前实现：在完整 train 集计算全局 per-subject μ/σ → 有数据泄漏（test 被试的 train fold 数据混入）
+  - 规范要求：在 LOSO 每一折的 train fold 内部，仅对 train fold 中的被试计算 μ/σ；test fold 被试使用各自在 train fold 中的统计量（或不归一化）
+  - 修改 `run_desubject_analysis`：移除全局 train 集统计，改为在 LOSO split 内按折计算
+
+- [ ] **A-impl-7: 更新 main() 流程和输出格式**
+  - 文件：`benchmark_eval/scripts/validate_eeg_signal.py`
+  - main() 中移除对 train_data 的依赖（仅保留 test_data）
+  - A1a/A1b/A1c 各产出三组结果，写入 `linear_probe_results.json` 的对应 key
+  - A2/A3 流程基本不变，但 A3 改为 LOSO 框架后结果结构更新
+
+---
+
+## 十一、建议执行顺序
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
@@ -224,15 +296,16 @@
 | **Phase 6** | D-1~D-5（数据处理流程优化） | 已完成 |
 | **Phase 7** | N-1~N-3（噪声测试实现） | 部分完成 |
 | **Phase 8** | R-1~R-3（检索测试实现） | 已完成 |
-| **Phase 9a** | DV-1a/b/c + DV-2 + DV-2-band（数据有效性验证，CPU ~10min） | 脚本已创建 |
-| **Phase 9b** | NC-1~NC-2（噪声/Shuffle 支持开发，三层架构） | 已完成 |
-| **Phase 9c** | NC-3~NC-5（运行实验 + 综合分析报告） | 脚本已创建，待运行 |
+| **Phase 9a** | A-impl-1~7（诊断线A代码对齐：nfixations字段 + LOSO重构 + 三组信号） | 待实现 |
+| **Phase 9b** | DV-1a/b/c + DV-2 + DV-2-band（运行诊断线A，CPU ~10~30min） | 待 Phase 9a 完成后运行 |
+| **Phase 9c** | NC-1~NC-2（噪声/Shuffle 支持开发，三层架构） | 已完成 |
+| **Phase 9d** | NC-3~NC-5（运行实验 + 综合分析报告） | 脚本已创建，待运行 |
 
-> **注意**：代码修改完成后，需要重新运行 `build_unified_dataset.py` 重新构建 `unified_zuco.pkl`，
-> 才能使 D-1（spectrogram 格式）和 D-2（字段重命名）生效。
-> 旧 PKL 文件通过向后兼容字段名仍可正常加载，但不包含 `eeg_spectro` 字段（EEG2Text 无法正常评估）。
+> **注意（数据重建）**：完成 A-impl-1 后，必须重新运行 `build_unified_dataset.py` 重新构建
+> `unified_zuco.pkl`，才能使 `nfixations_word` 字段生效（A-impl-1b）。
+> 旧 PKL 文件缺少该字段，A1b 会 fallback 到 A1a 结果。
 
 ---
 
-*生成时间：2026-04-09，v2 更新：2026-04，v3 更新：2026-04-11（同步 contrast_experiment_spec v2 修订）*
+*生成时间：2026-04-09，v2 更新：2026-04，v3 更新：2026-04-11（同步 contrast_experiment_spec v2 修订），v4 更新：2026-04-23（同步 experiment_A_details v3 三组信号并行 + LOSO 5折CV规范，新增第十节代码对齐任务）*
 *审计范围：benchmark_eval 全部核心模块（18 个源文件 + 3 组评估输出）*
