@@ -57,7 +57,13 @@ def parse_args():
 
 def load_retrieval_metrics(results_dir: str, model: str,
                            noise: str = "") -> Optional[Dict]:
-    """加载检索评估指标文件。"""
+    """加载检索评估指标文件。优先查找 line_b 目录结构。"""
+    # 优先查找 line_b/{model}/{noise}/ 结构
+    line_b_path = os.path.join(results_dir, "line_b", model, noise or "real", "retrieval_metrics.json")
+    if os.path.isfile(line_b_path):
+        with open(line_b_path, "r") as f:
+            return json.load(f)
+    # 回退到旧路径格式
     if noise and noise != "real":
         dirname = f"eval_{model}_retrieval_{noise}"
     else:

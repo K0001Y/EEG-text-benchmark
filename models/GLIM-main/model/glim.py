@@ -126,10 +126,10 @@ class GLIM(L.LightningModule):  # 继承PyTorch Lightning的LightningModule
         # 禁用tokenizers并行化以避免警告
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
         # 初始化tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(self.text_model_id)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.text_model_id, local_files_only=True)
         # 初始化文本生成模型，设置为不需要梯度
         self.text_model = T5ForConditionalGeneration.from_pretrained(
-            self.text_model_id, device_map = self.device,
+            self.text_model_id, local_files_only=True, device_map = self.device,
             torch_dtype = torch.bfloat16, # FIXME
             ).requires_grad_(False)
         # 确保嵌入维度与模型配置一致

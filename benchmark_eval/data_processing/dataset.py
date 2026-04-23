@@ -32,9 +32,15 @@ def custom_collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     """自定义 collate 函数，正确处理字符串和字典字段。
 
     Tensor 堆叠，字符串和字典保持为列表。
+    支持不同样本具有不同 key 集合（缺失的 key 跳过）。
     """
+    # 收集所有样本中均存在的 key
+    common_keys = set(batch[0].keys())
+    for item in batch[1:]:
+        common_keys &= set(item.keys())
+
     collated: Dict[str, Any] = {}
-    for key in batch[0].keys():
+    for key in common_keys:
         values = [item[key] for item in batch]
         if isinstance(values[0], torch.Tensor):
             collated[key] = torch.stack(values)

@@ -219,10 +219,8 @@ def grouped_metrics(eeg_vecs, text_vecs, gt_idx, meta_list, ks=(1, 5, 10)):
 
 def main():
     args = parse_args()
-    # 噪声条件自动添加输出目录后缀
+    # 噪声条件：不再自动追加输出目录后缀（由调用方负责指定完整路径）
     output_dir = args.output_dir
-    if args.noise_type != "real":
-        output_dir = f"{output_dir.rstrip('/')}_{args.noise_type}"
     os.makedirs(output_dir, exist_ok=True)
     logger = setup_logging(output_dir, log_name="retrieval_eval.log")
     logger.info("EEG2Text Retrieval Eval | args=%s", vars(args))

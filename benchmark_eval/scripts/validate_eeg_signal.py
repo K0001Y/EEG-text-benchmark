@@ -593,7 +593,7 @@ def run_tsne_visualization(features, sentence_ids, subject_ids, task_ids,
     for perp in perplexities:
         logger.info("  t-SNE perplexity=%d ...", perp)
         tsne = TSNE(n_components=2, perplexity=perp, random_state=DEFAULT_SEED,
-                     n_iter=1000)
+                     max_iter=1000)
         tsne_feats = tsne.fit_transform(pca_feats)
 
         for color_name, color_ids, title_suffix in color_configs:

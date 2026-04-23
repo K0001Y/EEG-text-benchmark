@@ -172,8 +172,6 @@ def main():
     args = parse_args()
     # 噪声条件自动添加输出目录后缀
     output_dir = args.output_dir
-    if args.noise_type != "real":
-        output_dir = f"{output_dir.rstrip('/')}_{args.noise_type}"
     os.makedirs(output_dir, exist_ok=True)
     logger = setup_logging(output_dir, log_name="retrieval_eval.log")
     logger.info("GLIM Retrieval Eval | args=%s", vars(args))

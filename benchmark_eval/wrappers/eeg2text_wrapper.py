@@ -96,8 +96,8 @@ class EEG2TextWrapper(BenchmarkModelWrapper):
             pretrain_state = torch.load(pretrain_checkpoint, map_location=self.device)
             self.model.load_state_dict(pretrain_state, strict=False)
 
-        self.text_decoder = BartForConditionalGeneration.from_pretrained("facebook/bart-large")
-        self.tokenizer = BartTokenizer.from_pretrained("facebook/bart-large")
+        self.text_decoder = BartForConditionalGeneration.from_pretrained("facebook/bart-large", local_files_only=True)
+        self.tokenizer = BartTokenizer.from_pretrained("facebook/bart-large", local_files_only=True)
 
         if checkpoint_path and os.path.isfile(checkpoint_path):
             state_dict = torch.load(checkpoint_path, map_location=self.device)
