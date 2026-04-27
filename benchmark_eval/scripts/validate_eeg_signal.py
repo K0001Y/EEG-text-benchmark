@@ -75,6 +75,7 @@ def collect_samples(data_path: str, phase: str = "test"):
     text_list = []
     subject_list = []
     task_list = []
+    session_list = []
     sentence_id_list = []
     sent_eeg_list = []
     nfixations_list = []
@@ -107,6 +108,7 @@ def collect_samples(data_path: str, phase: str = "test"):
         meta = sample.get("meta", {})
         subject = meta.get("subject", "unknown")
         task = meta.get("task", "unknown")
+        session = meta.get("session", "session_unknown")
 
         if text not in text_to_id:
             text_to_id[text] = len(unique_texts)
@@ -116,6 +118,7 @@ def collect_samples(data_path: str, phase: str = "test"):
         text_list.append(text)
         subject_list.append(subject)
         task_list.append(task)
+        session_list.append(session)
         sentence_id_list.append(text_to_id[text])
         sent_eeg_list.append(sent_eeg)
         nfixations_list.append(nfix)
@@ -125,6 +128,7 @@ def collect_samples(data_path: str, phase: str = "test"):
         "text_list": text_list,
         "subject_list": subject_list,
         "task_list": task_list,
+        "session_list": session_list,
         "sentence_id_list": sentence_id_list,
         "sent_eeg_list": sent_eeg_list,
         "nfixations_list": nfixations_list,
@@ -350,16 +354,150 @@ def run_loso_linear_probe(X, y, groups, n_classes, variant_name, logger):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# A1d: 跨 Session 可分性 Linear Probe
+# ═══════════════════════════════════════════════════════════════════════════
+
+def run_session_probe(features_dict, subject_ids, session_ids, task_ids,
+                      logger):
+    """A1d: 跨 Session 可分性 Linear Probe（逐被试 StratifiedKFold 5 折）。
+
+    对每位同时出现在两个 session 的被试单独建模，输入特征分别取
+    词级 EEG / 句级 EEG / 高斯噪声，5 折均值 accuracy；全体被试再求 mean/std。
+    额外输出 task1-SR 内部对照，以剥离 task 对 session 的混淆效应。
+
+    Args:
+        features_dict: {"word_eeg": (N,840), "sent_eeg": (N,840), "noise": (N,840)}
+        subject_ids: list[str]，长度 N
+        session_ids: list[str]，长度 N
+        task_ids: list[str]，长度 N
+        logger: 日志器
+
+    Returns:
+        dict: {"overall": {src: {...}}, "task1_sr": {src: {...}}}
+    """
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.model_selection import StratifiedKFold
+
+    logger.info("=== A1d: 跨 Session Linear Probe ===")
+
+    subj_arr = np.array(subject_ids)
+    sess_arr = np.array(session_ids)
+    task_arr = np.array(task_ids)
+
+    def _probe_scope(scope_name, base_mask):
+        logger.info("  --- scope=%s ---", scope_name)
+        # 找出在该 scope 内同时出现两个 session 的被试
+        dual_subjects = []
+        for p in sorted(set(subj_arr[base_mask])):
+            p_mask = base_mask & (subj_arr == p)
+            p_sess = set(sess_arr[p_mask]) - {"session_unknown"}
+            if len(p_sess) >= 2:
+                dual_subjects.append(p)
+        logger.info("    [%s] dual-session subjects: %d",
+                    scope_name, len(dual_subjects))
+        if not dual_subjects:
+            return {src: {"error": "no_dual_session_subject", "n_subjects": 0}
+                    for src in features_dict.keys()}
+
+        scope_result: Dict[str, Any] = {}
+        for src_name, X in features_dict.items():
+            per_subject = []
+            baselines: List[float] = []
+            for p in dual_subjects:
+                p_mask = (base_mask & (subj_arr == p)
+                          & (sess_arr != "session_unknown"))
+                if p_mask.sum() < 10:
+                    continue
+                X_p = X[p_mask]
+                y_p = (sess_arr[p_mask] == "session_2").astype(int)
+                n1 = int((y_p == 0).sum())
+                n2 = int((y_p == 1).sum())
+                if n1 < 2 or n2 < 2:
+                    continue
+                baseline = max(n1, n2) / (n1 + n2)
+                baselines.append(baseline)
+
+                n_splits = min(5, min(n1, n2))
+                skf = StratifiedKFold(
+                    n_splits=n_splits, shuffle=True,
+                    random_state=DEFAULT_SEED,
+                )
+                fold_accs = []
+                for tr_idx, te_idx in skf.split(X_p, y_p):
+                    scaler = StandardScaler()
+                    X_tr = scaler.fit_transform(X_p[tr_idx])
+                    X_te = scaler.transform(X_p[te_idx])
+                    clf = LogisticRegression(
+                        max_iter=1000, solver="lbfgs",
+                        random_state=DEFAULT_SEED,
+                    )
+                    clf.fit(X_tr, y_p[tr_idx])
+                    pred = clf.predict(X_te)
+                    fold_accs.append(float((pred == y_p[te_idx]).mean()))
+                per_subject.append({
+                    "subject": str(p),
+                    "n": int(p_mask.sum()),
+                    "n_session_1": n1,
+                    "n_session_2": n2,
+                    "baseline": round(baseline, 6),
+                    "mean_acc": round(float(np.mean(fold_accs)), 6),
+                    "std_acc": round(float(np.std(fold_accs)), 6),
+                    "n_splits": n_splits,
+                })
+
+            if per_subject:
+                accs_all = [s["mean_acc"] for s in per_subject]
+                bl_mean = float(np.mean(baselines)) if baselines else 0.0
+                scope_result[src_name] = {
+                    "per_subject": per_subject,
+                    "n_subjects": len(per_subject),
+                    "mean_acc": round(float(np.mean(accs_all)), 6),
+                    "std_acc": round(float(np.std(accs_all)), 6),
+                    "mean_baseline": round(bl_mean, 6),
+                    "delta_vs_baseline": round(
+                        float(np.mean(accs_all)) - bl_mean, 6),
+                }
+                logger.info(
+                    "    [%s] %s: n_subj=%d, mean_acc=%.4f(+/-%.4f), "
+                    "baseline=%.4f, delta=%.4f",
+                    scope_name, src_name, len(per_subject),
+                    scope_result[src_name]["mean_acc"],
+                    scope_result[src_name]["std_acc"],
+                    bl_mean,
+                    scope_result[src_name]["delta_vs_baseline"],
+                )
+            else:
+                scope_result[src_name] = {
+                    "error": "insufficient_data", "n_subjects": 0,
+                }
+                logger.warning("    [%s] %s: insufficient_data",
+                               scope_name, src_name)
+        return scope_result
+
+    overall_mask = np.ones(len(sess_arr), dtype=bool)
+    task1_mask = (task_arr == "task1-SR")
+    return {
+        "overall": _probe_scope("overall", overall_mask),
+        "task1_sr": _probe_scope("task1_sr", task1_mask),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # A2: 被试效应 vs 句子效应分析
 # ═══════════════════════════════════════════════════════════════════════════
 
-def run_cosine_similarity_analysis(features, sentence_ids, subject_ids, logger):
-    """余弦相似度分组对比。
+def run_cosine_similarity_analysis(features, sentence_ids, subject_ids, logger,
+                                   session_ids=None):
+    """余弦相似度分组对比（含跨 session 分组）。
 
-    分三组计算余弦相似度：
-      - 同句异被试：反映句子语义效应
-      - 同被试异句：反映被试个体特征
+    基础三组：
+      - 同句异被试：句子语义效应
+      - 同被试异句：被试个体特征
       - 异句异被试：基线
+    Session 扩展（仅当 session_ids 提供且包含两个已知 session 时输出）：
+      - 同被试异句同 session
+      - 同被试异句跨 session
     """
     from sklearn.metrics.pairwise import cosine_similarity
 
@@ -371,7 +509,11 @@ def run_cosine_similarity_analysis(features, sentence_ids, subject_ids, logger):
 
     same_sent_diff_subj = []
     same_subj_diff_sent = []
+    same_subj_diff_sent_same_session = []
+    same_subj_diff_sent_cross_session = []
     diff_sent_diff_subj = []
+
+    has_session = session_ids is not None
 
     for i in range(n):
         for j in range(i + 1, n):
@@ -383,6 +525,13 @@ def run_cosine_similarity_analysis(features, sentence_ids, subject_ids, logger):
                 same_sent_diff_subj.append(cos_val)
             elif same_subj and not same_sent:
                 same_subj_diff_sent.append(cos_val)
+                if has_session:
+                    sa, sb = session_ids[i], session_ids[j]
+                    if sa != "session_unknown" and sb != "session_unknown":
+                        if sa == sb:
+                            same_subj_diff_sent_same_session.append(cos_val)
+                        else:
+                            same_subj_diff_sent_cross_session.append(cos_val)
             elif not same_sent and not same_subj:
                 diff_sent_diff_subj.append(cos_val)
 
@@ -403,6 +552,11 @@ def run_cosine_similarity_analysis(features, sentence_ids, subject_ids, logger):
         "same_subj_diff_sent": _stats(same_subj_diff_sent, "同被试异句"),
         "diff_sent_diff_subj": _stats(diff_sent_diff_subj, "异句异被试"),
     }
+    if has_session:
+        result["same_subj_diff_sent_same_session"] = _stats(
+            same_subj_diff_sent_same_session, "同被试异句同session")
+        result["same_subj_diff_sent_cross_session"] = _stats(
+            same_subj_diff_sent_cross_session, "同被试异句跨session")
 
     # 判定排序
     means = {
@@ -415,19 +569,35 @@ def run_cosine_similarity_analysis(features, sentence_ids, subject_ids, logger):
     logger.info("  排序: %s", " > ".join(
         f"{g[0]}({g[1]:.4f})" for g in sorted_groups))
 
+    # Session 维度解读
+    if has_session:
+        same_s = result["same_subj_diff_sent_same_session"].get("mean")
+        cross_s = result["same_subj_diff_sent_cross_session"].get("mean")
+        if same_s is not None and cross_s is not None:
+            delta = same_s - cross_s
+            result["session_delta_same_minus_cross"] = round(float(delta), 6)
+            logger.info(
+                "  Session 对比: same_session=%.6f, cross_session=%.6f, delta=%.6f",
+                same_s, cross_s, delta,
+            )
+
     return result
 
 
-def run_eta_squared_analysis(features, sentence_ids, subject_ids, logger):
-    """方差分解: eta^2 分析。
+def run_eta_squared_analysis(features, sentence_ids, subject_ids, logger,
+                             session_ids=None):
+    """方差分解: eta^2 分析（启 session 因素时为三因素）。
 
-    对 EEG 特征的每个维度做 two-way ANOVA 变体（手动计算 eta^2）。
+    对 EEG 特征的每个维度手动计算每个因子的组间方差占总方差的比例（独立考察）。
+    若提供 session_ids，额外输出 eta^2_session（排除 `session_unknown` 后仅三类：
+    其实际有值类别为两个 session）。
     """
     logger.info("=== A2: eta^2 方差分解 ===")
 
     n_features = features.shape[1]
     eta2_sentence = []
     eta2_subject = []
+    eta2_session = []
 
     # 编码因子
     sent_arr = np.array(sentence_ids)
@@ -435,6 +605,20 @@ def run_eta_squared_analysis(features, sentence_ids, subject_ids, logger):
 
     unique_sent = np.unique(sent_arr)
     unique_subj = np.unique(subj_arr)
+
+    has_session = session_ids is not None
+    if has_session:
+        sess_arr = np.array(session_ids)
+        # 只在已知 session 的样本上计算 session 因子（整体方差由它们汇总）
+        sess_mask_known = sess_arr != "session_unknown"
+        unique_session = [s for s in np.unique(sess_arr) if s != "session_unknown"]
+        n_known_session = int(sess_mask_known.sum())
+        if len(unique_session) < 2 or n_known_session < 10:
+            has_session = False  # 不足以做 session 分解
+            logger.warning(
+                "Session factor skipped: unique_session=%d, n_known=%d",
+                len(unique_session), n_known_session,
+            )
 
     for d in range(n_features):
         y = features[:, d]
@@ -444,6 +628,8 @@ def run_eta_squared_analysis(features, sentence_ids, subject_ids, logger):
         if ss_total < 1e-12:
             eta2_sentence.append(0.0)
             eta2_subject.append(0.0)
+            if has_session:
+                eta2_session.append(0.0)
             continue
 
         # SS_sentence
@@ -465,6 +651,25 @@ def run_eta_squared_analysis(features, sentence_ids, subject_ids, logger):
         eta2_sentence.append(ss_sent / ss_total)
         eta2_subject.append(ss_subj / ss_total)
 
+        # SS_session（仅已知 session）
+        if has_session:
+            y_k = y[sess_mask_known]
+            if y_k.size == 0:
+                eta2_session.append(0.0)
+                continue
+            grand_k = y_k.mean()
+            ss_total_k = np.sum((y_k - grand_k) ** 2)
+            if ss_total_k < 1e-12:
+                eta2_session.append(0.0)
+                continue
+            ss_sess = 0.0
+            for s in unique_session:
+                m = (sess_arr == s) & sess_mask_known
+                n_s = m.sum()
+                if n_s > 0:
+                    ss_sess += n_s * (y[m].mean() - grand_k) ** 2
+            eta2_session.append(ss_sess / ss_total_k)
+
     eta2_sent_arr = np.array(eta2_sentence)
     eta2_subj_arr = np.array(eta2_subject)
 
@@ -483,14 +688,26 @@ def run_eta_squared_analysis(features, sentence_ids, subject_ids, logger):
         "n_sentences": len(unique_sent),
         "n_subjects": len(unique_subj),
     }
+    if has_session:
+        eta2_sess_arr = np.array(eta2_session)
+        result["eta2_session"] = {
+            "mean": round(float(eta2_sess_arr.mean()), 6),
+            "median": round(float(np.median(eta2_sess_arr)), 6),
+            "std": round(float(eta2_sess_arr.std()), 6),
+        }
+        result["n_known_session_samples"] = int((sess_arr != "session_unknown").sum())
 
     logger.info("  eta^2(句子): mean=%.6f, median=%.6f",
                 result["eta2_sentence"]["mean"], result["eta2_sentence"]["median"])
     logger.info("  eta^2(被试): mean=%.6f, median=%.6f",
                 result["eta2_subject"]["mean"], result["eta2_subject"]["median"])
+    if has_session:
+        logger.info("  eta^2(session): mean=%.6f, median=%.6f",
+                    result["eta2_session"]["mean"], result["eta2_session"]["median"])
 
-    # 判定
+    # 判定 r_subj_vs_sent
     ratio = result["eta2_subject"]["median"] / max(result["eta2_sentence"]["median"], 1e-12)
+    result["r_subj_vs_sent"] = round(float(ratio), 4)
     if ratio > 3:
         result["conclusion"] = "subject_dominant"
         logger.info("  结论: 被试效应主导 (eta^2_subj/eta^2_sent = %.1f)", ratio)
@@ -501,13 +718,27 @@ def run_eta_squared_analysis(features, sentence_ids, subject_ids, logger):
         result["conclusion"] = "sentence_dominant"
         logger.info("  结论: 句子效应主导")
 
+    # 判定 r_session_vs_sent
+    if has_session:
+        ratio_s = result["eta2_session"]["median"] / max(result["eta2_sentence"]["median"], 1e-12)
+        result["r_session_vs_sent"] = round(float(ratio_s), 4)
+        if ratio_s > 3:
+            result["session_conclusion"] = "session_dominant"
+        elif ratio_s > 0.5:
+            result["session_conclusion"] = "session_comparable_to_sentence"
+        else:
+            result["session_conclusion"] = "session_weak"
+        logger.info("  r_session_vs_sent=%.3f → %s",
+                    ratio_s, result["session_conclusion"])
+
     return result
 
 
-def run_band_level_eta_squared(features, sentence_ids, subject_ids, logger):
+def run_band_level_eta_squared(features, sentence_ids, subject_ids, logger,
+                               session_ids=None):
     """A2-band: 频带级 eta^2 分析。
 
-    对 8 个频带分别计算 eta^2_sentence 和 eta^2_subject。
+    对 8 个频带分别计算 eta^2_sentence、eta^2_subject，可选加 eta^2_session。
     """
     logger.info("=== A2-band: 频带级 eta^2 分析 ===")
 
@@ -520,10 +751,18 @@ def run_band_level_eta_squared(features, sentence_ids, subject_ids, logger):
     unique_sent = np.unique(sent_arr)
     unique_subj = np.unique(subj_arr)
 
+    has_session = session_ids is not None
+    if has_session:
+        sess_arr = np.array(session_ids)
+        sess_mask_known = sess_arr != "session_unknown"
+        unique_session = [s for s in np.unique(sess_arr) if s != "session_unknown"]
+        if len(unique_session) < 2 or sess_mask_known.sum() < 10:
+            has_session = False
+
     band_results = {}
     for b, band_name in enumerate(BAND_NAMES):
         band_feat = reshaped[:, b, :]  # (N, 105)
-        eta2_sent_list, eta2_subj_list = [], []
+        eta2_sent_list, eta2_subj_list, eta2_sess_list = [], [], []
 
         for d in range(EEG_CHANNELS):
             y = band_feat[:, d]
@@ -533,6 +772,8 @@ def run_band_level_eta_squared(features, sentence_ids, subject_ids, logger):
             if ss_total < 1e-12:
                 eta2_sent_list.append(0.0)
                 eta2_subj_list.append(0.0)
+                if has_session:
+                    eta2_sess_list.append(0.0)
                 continue
 
             ss_sent = sum(
@@ -547,23 +788,58 @@ def run_band_level_eta_squared(features, sentence_ids, subject_ids, logger):
             eta2_sent_list.append(ss_sent / ss_total)
             eta2_subj_list.append(ss_subj / ss_total)
 
-        band_results[band_name] = {
+            if has_session:
+                y_k = y[sess_mask_known]
+                grand_k = y_k.mean()
+                ss_total_k = np.sum((y_k - grand_k) ** 2)
+                if ss_total_k < 1e-12:
+                    eta2_sess_list.append(0.0)
+                    continue
+                ss_sess = 0.0
+                for s in unique_session:
+                    mm = (sess_arr == s) & sess_mask_known
+                    n_s = mm.sum()
+                    if n_s > 0:
+                        ss_sess += n_s * (y[mm].mean() - grand_k) ** 2
+                eta2_sess_list.append(ss_sess / ss_total_k)
+
+        entry = {
             "eta2_sentence_median": round(float(np.median(eta2_sent_list)), 6),
             "eta2_subject_median": round(float(np.median(eta2_subj_list)), 6),
             "eta2_sentence_mean": round(float(np.mean(eta2_sent_list)), 6),
             "eta2_subject_mean": round(float(np.mean(eta2_subj_list)), 6),
         }
-        logger.info("  %s: eta^2_sent=%.6f, eta^2_subj=%.6f (median)",
-                     band_name,
-                     band_results[band_name]["eta2_sentence_median"],
-                     band_results[band_name]["eta2_subject_median"])
+        if has_session:
+            entry["eta2_session_median"] = round(float(np.median(eta2_sess_list)), 6)
+            entry["eta2_session_mean"] = round(float(np.mean(eta2_sess_list)), 6)
+        band_results[band_name] = entry
+
+        if has_session:
+            logger.info(
+                "  %s: eta^2_sent=%.6f, eta^2_subj=%.6f, eta^2_sess=%.6f (median)",
+                band_name,
+                entry["eta2_sentence_median"],
+                entry["eta2_subject_median"],
+                entry["eta2_session_median"],
+            )
+        else:
+            logger.info("  %s: eta^2_sent=%.6f, eta^2_subj=%.6f (median)",
+                         band_name,
+                         entry["eta2_sentence_median"],
+                         entry["eta2_subject_median"])
 
     return band_results
 
 
 def run_tsne_visualization(features, sentence_ids, subject_ids, task_ids,
-                           output_dir, logger):
-    """t-SNE 降维可视化（多 perplexity）。"""
+                           output_dir, logger, session_ids=None):
+    """t-SNE 降维可视化（多 perplexity）。
+
+    着色方案：
+      - 按被试：perplexity ∈ {5, 30, 50}
+      - 按句子 / task ：仅 perplexity=30
+      - 按 session（可选）：仅 perplexity=30
+    """
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -589,6 +865,8 @@ def run_tsne_visualization(features, sentence_ids, subject_ids, task_ids,
         ("sentence", sentence_ids, "按句子 ID 着色"),
         ("task", task_ids, "按 task 着色"),
     ]
+    if session_ids is not None:
+        color_configs.append(("session", session_ids, "按 session 着色"))
 
     for perp in perplexities:
         logger.info("  t-SNE perplexity=%d ...", perp)
@@ -840,6 +1118,142 @@ def _run_aggregated_retrieval(features, sentence_ids, subject_ids, logger, sourc
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# A3-SessionRetrieval: 同被试跨 Session 聚合检索
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _session_retrieve_core(features, sent_arr, sess_arr, idx_mask, label,
+                           min_common=5):
+    """按 session 聚合后跨 session 检索的核心流程。
+
+    Args:
+        features: (N, 840)
+        sent_arr: np.ndarray，句子 ID
+        sess_arr: np.ndarray，字符串 session
+        idx_mask: bool mask，参与聚合的样本下标
+        label: 用于记录的标签
+        min_common: 少于该数量的公共句子视为不可检索
+    """
+    idxs = np.where(idx_mask)[0]
+    if len(idxs) == 0:
+        return {"error": "empty_mask", "label": label}
+    agg1: dict = {}
+    agg2: dict = {}
+    for i in idxs:
+        s = sent_arr[i]
+        if sess_arr[i] == "session_1":
+            agg1.setdefault(s, []).append(features[i])
+        elif sess_arr[i] == "session_2":
+            agg2.setdefault(s, []).append(features[i])
+    common = sorted(set(agg1.keys()) & set(agg2.keys()))
+    M = len(common)
+    if M < min_common:
+        return {"error": "too_few_common_sentences",
+                "n_common": M, "label": label}
+    vec_a = np.array([np.mean(agg1[s], axis=0) for s in common],
+                     dtype=np.float32)
+    vec_b = np.array([np.mean(agg2[s], axis=0) for s in common],
+                     dtype=np.float32)
+    na = np.linalg.norm(vec_a, axis=1, keepdims=True).clip(min=1e-8)
+    nb = np.linalg.norm(vec_b, axis=1, keepdims=True).clip(min=1e-8)
+    vec_a = vec_a / na
+    vec_b = vec_b / nb
+    sim = vec_a @ vec_b.T  # (M, M)
+    ranks = []
+    for i in range(M):
+        order = np.argsort(sim[i])[::-1]
+        ranks.append(int(np.where(order == i)[0][0]) + 1)
+    ranks_arr = np.array(ranks, dtype=np.float32)
+    return {
+        "label": label,
+        "n_sentences": M,
+        "r@1":  round(float((ranks_arr <= 1).mean()),  6),
+        "r@5":  round(float((ranks_arr <= 5).mean()),  6),
+        "r@10": round(float((ranks_arr <= 10).mean()), 6),
+        "mrr":  round(float((1.0 / ranks_arr).mean()), 6),
+        "mean_rank":   round(float(ranks_arr.mean()), 2),
+        "median_rank": round(float(np.median(ranks_arr)), 2),
+        "random_baseline": round(1.0 / M, 6),
+    }
+
+
+def run_session_retrieval(features, sentence_ids, subject_ids, session_ids,
+                          task_ids, logger, source="word_eeg"):
+    """A3-SessionRetrieval: 同被试跨 Session 聚合检索。
+
+    包含三个视图：
+      - aggregated_all      ：全体被试按 session 内并聚合（包含所有 task）
+      - aggregated_task1_sr ：仅 task1-SR 内部聚合（剥离 task 混淆）
+      - per_subject         ：对每位双 session 被试单独执行聚合检索，再求均值
+    """
+    logger.info("--- A3-SessionRetrieval: 同被试跨 session 聚合检索 [%s] ---",
+                source)
+
+    sent_arr = np.array(sentence_ids)
+    subj_arr = np.array(subject_ids)
+    sess_arr = np.array(session_ids)
+    task_arr = np.array(task_ids)
+    known_mask = (sess_arr != "session_unknown")
+
+    results: Dict[str, Any] = {"source": source}
+
+    # 全体聚合
+    results["aggregated_all"] = _session_retrieve_core(
+        features, sent_arr, sess_arr, known_mask, "aggregated_all")
+    # task1-SR 内部对照
+    t1_mask = known_mask & (task_arr == "task1-SR")
+    results["aggregated_task1_sr"] = _session_retrieve_core(
+        features, sent_arr, sess_arr, t1_mask, "aggregated_task1_sr")
+
+    # 被试内版本
+    per_subject = []
+    for p in sorted(set(subj_arr)):
+        p_mask = known_mask & (subj_arr == p)
+        r = _session_retrieve_core(
+            features, sent_arr, sess_arr, p_mask, f"subject_{p}")
+        if "error" not in r:
+            r["subject"] = str(p)
+            per_subject.append(r)
+    if per_subject:
+        r1 = [r["r@1"] for r in per_subject]
+        r5 = [r["r@5"] for r in per_subject]
+        mrr_l = [r["mrr"] for r in per_subject]
+        results["per_subject"] = {
+            "subjects": per_subject,
+            "n_subjects": len(per_subject),
+            "r@1_mean": round(float(np.mean(r1)), 6),
+            "r@1_std":  round(float(np.std(r1)), 6),
+            "r@5_mean": round(float(np.mean(r5)), 6),
+            "mrr_mean": round(float(np.mean(mrr_l)), 6),
+        }
+        logger.info(
+            "  [%s] per-subject: n=%d, R@1=%.4f(+/-%.4f), R@5=%.4f, MRR=%.4f",
+            source, len(per_subject),
+            results["per_subject"]["r@1_mean"],
+            results["per_subject"]["r@1_std"],
+            results["per_subject"]["r@5_mean"],
+            results["per_subject"]["mrr_mean"],
+        )
+    else:
+        results["per_subject"] = {"error": "no_dual_session_subject",
+                                   "n_subjects": 0}
+        logger.warning("  [%s] per-subject: no_dual_session_subject", source)
+
+    for key in ["aggregated_all", "aggregated_task1_sr"]:
+        r = results[key]
+        if "error" not in r:
+            logger.info(
+                "  [%s] %s: M=%d, R@1=%.4f%% (baseline=%.4f%%), MRR=%.4f",
+                source, key, r["n_sentences"],
+                r["r@1"] * 100, r["random_baseline"] * 100, r["mrr"],
+            )
+        else:
+            logger.info("  [%s] %s: %s (n_common=%s)", source, key,
+                        r["error"], r.get("n_common"))
+
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Main
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -961,6 +1375,24 @@ def main():
         "noise": a1c_noise,
     }
 
+    # A1d: 跨 Session Linear Probe（同被试 EEG / 句级 EEG / 噪声）
+    logger.info("=" * 60)
+    logger.info("A1d: 跨 Session Linear Probe")
+    logger.info("=" * 60)
+
+    a1d_result = run_session_probe(
+        features_dict={
+            "word_eeg": word_feats_mp,
+            "sent_eeg": sent_feats,
+            "noise": noise_feats,
+        },
+        subject_ids=test_data["subject_list"],
+        session_ids=test_data["session_list"],
+        task_ids=test_data["task_list"],
+        logger=logger,
+    )
+    all_results["A1d_cross_session"] = a1d_result
+
     # ──────────────────────────────────────────────────────────────────────
     # A2: 被试效应 vs 句子效应分析（EEG + 噪声对照）
     # ──────────────────────────────────────────────────────────────────────
@@ -971,11 +1403,13 @@ def main():
     # EEG 余弦相似度
     cosine_eeg = run_cosine_similarity_analysis(
         word_feats_mp, test_data["sentence_id_list"],
-        test_data["subject_list"], logger)
+        test_data["subject_list"], logger,
+        session_ids=test_data["session_list"])
     # 噪声余弦相似度
     cosine_noise = run_cosine_similarity_analysis(
         noise_feats, test_data["sentence_id_list"],
-        test_data["subject_list"], logger)
+        test_data["subject_list"], logger,
+        session_ids=test_data["session_list"])
 
     all_results["A2_cosine_similarity"] = {
         "eeg": cosine_eeg,
@@ -985,11 +1419,31 @@ def main():
     # EEG eta^2
     eta2_eeg = run_eta_squared_analysis(
         word_feats_mp, test_data["sentence_id_list"],
-        test_data["subject_list"], logger)
+        test_data["subject_list"], logger,
+        session_ids=test_data["session_list"])
     # 噪声 eta^2
     eta2_noise = run_eta_squared_analysis(
         noise_feats, test_data["sentence_id_list"],
-        test_data["subject_list"], logger)
+        test_data["subject_list"], logger,
+        session_ids=test_data["session_list"])
+
+    # task1-SR 内部 eta^2 对照（剥离 task 对 session 的混淆）
+    task_arr_full = np.array(test_data["task_list"])
+    t1_mask = (task_arr_full == "task1-SR")
+    if t1_mask.sum() >= 10:
+        sess_list_arr = np.array(test_data["session_list"])
+        sent_list_arr = np.array(test_data["sentence_id_list"])
+        subj_list_arr = np.array(test_data["subject_list"])
+        eta2_eeg_t1 = run_eta_squared_analysis(
+            word_feats_mp[t1_mask],
+            sent_list_arr[t1_mask].tolist(),
+            subj_list_arr[t1_mask].tolist(),
+            logger,
+            session_ids=sess_list_arr[t1_mask].tolist(),
+        )
+        eta2_eeg["task1_sr_control"] = eta2_eeg_t1
+    else:
+        eta2_eeg["task1_sr_control"] = {"error": "insufficient_task1_sr_samples"}
 
     all_results["A2_eta_squared"] = {
         "eeg": eta2_eeg,
@@ -999,7 +1453,8 @@ def main():
     # ── A2-band: 频带级 eta^2（仅 EEG）──
     band_eta2 = run_band_level_eta_squared(
         word_feats_mp, test_data["sentence_id_list"],
-        test_data["subject_list"], logger)
+        test_data["subject_list"], logger,
+        session_ids=test_data["session_list"])
     all_results["A2_band_eta_squared"] = band_eta2
 
     # ── A2: t-SNE 可视化 ──
@@ -1008,6 +1463,7 @@ def main():
             word_feats_mp, test_data["sentence_id_list"],
             test_data["subject_list"], test_data["task_list"],
             args.output_dir, logger,
+            session_ids=test_data["session_list"],
         )
 
     # ──────────────────────────────────────────────────────────────────────
@@ -1022,6 +1478,25 @@ def main():
             word_feats_mp, y, groups, n_classes,
             noise_feats, logger)
         all_results["A3_desubject"] = a3_result
+
+        # A3-SessionRetrieval: 同被试跨 Session 聚合检索（EEG + 噪声对照）
+        logger.info("-" * 60)
+        logger.info("A3-SessionRetrieval: 同被试跨 Session 聚合检索")
+        logger.info("-" * 60)
+        session_retrieval_eeg = run_session_retrieval(
+            word_feats_mp, test_data["sentence_id_list"],
+            test_data["subject_list"], test_data["session_list"],
+            test_data["task_list"], logger, source="word_eeg",
+        )
+        session_retrieval_noise = run_session_retrieval(
+            noise_feats, test_data["sentence_id_list"],
+            test_data["subject_list"], test_data["session_list"],
+            test_data["task_list"], logger, source="noise",
+        )
+        all_results["A3_session_retrieval"] = {
+            "eeg": session_retrieval_eeg,
+            "noise": session_retrieval_noise,
+        }
     else:
         logger.info("跳过 A3 (--skip-a3)")
 
@@ -1068,12 +1543,34 @@ def main():
     random_bl = all_results["A1a"]["word_eeg"]["random_baseline"]
     print(f"\n  随机基线: {random_bl*100:.2f}%")
 
+    # A1d 跨 session 结果
+    if "A1d_cross_session" in all_results:
+        print("\n  A1d 跨 Session Linear Probe:")
+        for scope_key in ["overall", "task1_sr"]:
+            scope = all_results["A1d_cross_session"].get(scope_key, {})
+            print(f"    scope={scope_key}:")
+            for src in ["word_eeg", "sent_eeg", "noise"]:
+                r = scope.get(src, {})
+                if "error" in r:
+                    print(f"      {src}: {r['error']}")
+                else:
+                    print(
+                        f"      {src}: n_subj={r['n_subjects']}, "
+                        f"acc={r['mean_acc']*100:.2f}%(+/-{r['std_acc']*100:.2f}), "
+                        f"baseline={r['mean_baseline']*100:.2f}%, "
+                        f"delta={r['delta_vs_baseline']*100:+.2f}%"
+                    )
+
     # A2 结果
     print(f"\n  eta^2(句子) median [EEG]:  {eta2_eeg['eta2_sentence']['median']:.6f}")
     print(f"  eta^2(被试) median [EEG]:  {eta2_eeg['eta2_subject']['median']:.6f}")
+    if "eta2_session" in eta2_eeg:
+        print(f"  eta^2(session) median [EEG]: {eta2_eeg['eta2_session']['median']:.6f}"
+              f"  (r_session_vs_sent={eta2_eeg.get('r_session_vs_sent')})")
     print(f"  eta^2(句子) median [噪声]: {eta2_noise['eta2_sentence']['median']:.6f}")
     print(f"  eta^2(被试) median [噪声]: {eta2_noise['eta2_subject']['median']:.6f}")
-    print(f"  结论: {eta2_eeg.get('conclusion', 'N/A')}")
+    print(f"  结论: {eta2_eeg.get('conclusion', 'N/A')}"
+          f"  / session: {eta2_eeg.get('session_conclusion', 'N/A')}")
 
     # A3 结果
     if "A3_desubject" in all_results:
@@ -1088,6 +1585,30 @@ def main():
         if "error" not in agg_noise:
             print(f"  A3 聚合检索 [噪声]: R@1={agg_noise['r@1']*100:.2f}%, "
                   f"MRR={agg_noise['mrr']:.4f}, Mean Rank={agg_noise['mean_rank']:.1f}")
+
+    # A3-SessionRetrieval 结果
+    if "A3_session_retrieval" in all_results:
+        print("\n  A3-SessionRetrieval 同被试跨 Session 聚合检索:")
+        for source_key in ["eeg", "noise"]:
+            sr = all_results["A3_session_retrieval"].get(source_key, {})
+            for agg_key in ["aggregated_all", "aggregated_task1_sr"]:
+                r = sr.get(agg_key, {})
+                if "error" in r:
+                    print(f"    [{source_key}] {agg_key}: {r['error']}"
+                          f" (n_common={r.get('n_common')})")
+                else:
+                    print(
+                        f"    [{source_key}] {agg_key}: M={r['n_sentences']}, "
+                        f"R@1={r['r@1']*100:.2f}% (baseline={r['random_baseline']*100:.2f}%), "
+                        f"MRR={r['mrr']:.4f}"
+                    )
+            ps = sr.get("per_subject", {})
+            if "error" not in ps and ps.get("n_subjects", 0) > 0:
+                print(
+                    f"    [{source_key}] per_subject: n={ps['n_subjects']}, "
+                    f"R@1 mean={ps['r@1_mean']*100:.2f}%(+/-{ps['r@1_std']*100:.2f}), "
+                    f"MRR mean={ps['mrr_mean']:.4f}"
+                )
 
     print(sep)
     print(f"  输出目录: {args.output_dir}")

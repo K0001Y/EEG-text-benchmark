@@ -87,6 +87,41 @@ $$\mathbf{f}_i^\text{noise} \sim \mathcal{N}(\mathbf{0},\ \mathbf{I}_{840}), \qu
 
 **在 A 线各子实验中的使用方式**：将 $X^\text{noise} \in \mathbb{R}^{N \times 840}$ 替代 $X^\text{EEG}$ 代入相同流程，其余（标签、被试分组、分类器参数）完全不变。若噪声结果贴近理论随机基线，说明实验流程无 shortcut；若 EEG 结果显著超越噪声，说明 EEG 中确实存在有效信号。
 
+### 步骤 4：Session 标注（用于跨 session 分析）
+
+根据 ZuCo 原始实验设计（Hollenstein et al., 2018），每位被试在两个实验阶段完成所有任务：
+
+- **Session 1**：完成 Task 2（NR，300 句）+ Task 1（SR）前半部分
+- **Session 2**：完成 Task 3（TSR，407 句）+ Task 1（SR）后半部分
+
+句子呈现顺序对所有被试完全一致，因此可根据任务类型和句序确定 session 归属：
+
+| 任务 | Session 1 | Session 2 | 判定条件 |
+|------|-----------|-----------|----------|
+| task1-SR | 前半部分 | 后半部分 | `sentence_index < N_task1 // 2` → Session 1；`sentence_index ≥ N_task1 // 2` → Session 2 |
+| task2-NR | 全部 | — | 均为 Session 1 |
+| task3-TSR | — | 全部 | 均为 Session 2 |
+| task2-NR-2.0 | 待确认 | 待确认 | ZuCo v2 需单独核实 session 结构，暂标注为 `"session_unknown"` |
+
+其中 $N_\text{task1}$ 为 task1-SR 的总句数（约 400），`sentence_index` 为样本在 MAT 文件中该任务的原始序号（即 `build_unified_dataset.py` 中的 `sent_idx`）。
+
+**前置要求**：需在 `build_unified_dataset.py` 的 `_enrich_samples_with_metadata_and_labels` 函数中为每条样本的 `meta` 添加 `session` 字段，然后重新构建 `unified_zuco.pkl`；`collect_samples` 同步输出 `session_list`。
+
+```python
+def _assign_session(task_name: str, sentence_index: int, total_task1_sentences: int) -> str:
+    if task_name == "task2-NR":
+        return "session_1"
+    elif task_name == "task3-TSR":
+        return "session_2"
+    elif task_name == "task1-SR":
+        mid = total_task1_sentences // 2
+        return "session_1" if sentence_index < mid else "session_2"
+    else:
+        return "session_unknown"
+```
+
+> **Task 与 Session 的混淆**：task2-NR 仅在 Session 1，task3-TSR 仅在 Session 2，因此跨 session 分析需在 task1-SR 内部单独做一次对照，以分离真正的 session 效应。
+
 ---
 
 ## 实验 A1：Linear Probe 分类
@@ -208,6 +243,38 @@ $$\mathbf{f}_i^{\text{word}} = \text{flatten}\!\left(\frac{1}{T_i}\sum_{t} \text
 
 ---
 
+### A1d：跨 Session 可分性 Linear Probe
+
+**目的**：检验线性分类器能否从 EEG 特征区分**同一被试**的不同 session。若可分性显著高于随机基线，则同一被试的两个 session 在 EEG 表示空间存在系统性差异，跨 session 可比性存疑。
+
+**数据**：测试集中同时出现在两个 session 的被试子集（排除 `session_unknown`）。每位被试单独建模：
+
+$$\mathcal{I}_p = \{i : \text{subj}[i] = p,\ \text{session}[i] \in \{\text{session\_1}, \text{session\_2}\}\}$$
+
+**标签**：$y_i = 0$ 对应 Session 1，$y_i = 1$ 对应 Session 2。若某被试仅有单个 session 数据，则跳过。
+
+**特征**：复用 A1a 的 `mean_pool` 词级 EEG、句级 EEG、高斯噪声三组信号，并行报告。
+
+**方法**：`StratifiedKFold(n_splits=5, shuffle=True, random_state=42)`，每折 `StandardScaler` + `LogisticRegression(solver='lbfgs', max_iter=1000, random_state=42)`，5 折均值 accuracy。
+
+**随机基线**（多数类基线，逐被试计算后取均值）：
+
+$$\text{baseline}_p = \frac{\max(n_{p,1},\ n_{p,2})}{n_{p,1} + n_{p,2}}, \quad \text{baseline} = \frac{1}{|\mathcal{P}|}\sum_{p \in \mathcal{P}} \text{baseline}_p$$
+
+**输出**：每位被试的 5 折均值 accuracy 及全体被试均值 ± std。
+
+**task1-SR 内部对照**：仅在 `task1-SR` 任务内部重复上述流程，排除 task2-NR / task3-TSR 的 task 混淆后的 session 可分性。若 task1-SR 内 accuracy 显著低于全局结果，说明全局 session 可分主要由 task 差异驱动；若两者相当，则 session 效应独立于 task。
+
+**解读**：
+
+| 情况 | 含义 |
+|------|------|
+| accuracy ≈ baseline ≈ 噪声结果 | 同被试两个 session 的 EEG 分布无显著差异，跨 session 可直接合并 |
+| accuracy 显著 > baseline | Session 内存在可检测的系统性差异（疑疲劳 / 电极偏移 / 实验归一化差异） |
+| accuracy 远超 baseline | Session 效应强烈，需 session-level 归一化后方可跨 session 合并 |
+
+---
+
 ## 实验 A2：被试效应 vs 句子效应分析
 
 **数据**：测试集（`test_data`）所有样本，特征 $X \in \mathbb{R}^{N \times 840}$，使用 `mean_pool` 变体（`test_feats_mp`）。
@@ -228,17 +295,27 @@ $$\text{cos}(\mathbf{x}_i, \mathbf{x}_j) = \frac{\mathbf{x}_i \cdot \mathbf{x}_j
 |------|------|------|
 | 同句异被试 | $\text{sent}[i]=\text{sent}[j]$ 且 $\text{subj}[i]\neq\text{subj}[j]$ | 句子语义效应 |
 | 同被试异句 | $\text{subj}[i]=\text{subj}[j]$ 且 $\text{sent}[i]\neq\text{sent}[j]$ | 被试个体特征 |
-| 异句异被试 | $\text{sent}[i]\neq\text{sent}[j]$ 且 $\text{subj}[i]\neq\text{subj}[j]$ | 基线 |
+| 同被试异句同 session | $\text{subj}[i]=\text{subj}[j]$，$\text{sent}[i]\neq\text{sent}[j]$，$\text{session}[i]=\text{session}[j]$ | 同人同阶段的基线相似度 |
+| 同被试异句跨 session | $\text{subj}[i]=\text{subj}[j]$，$\text{sent}[i]\neq\text{sent}[j]$，$\text{session}[i]\neq\text{session}[j]$ | **同一被试跨 session 的相似度** |
+| 异句异被试 | $\text{sent}[i]\neq\text{sent}[j]$ 且 $\text{subj}[i]\neq\text{subj}[j]$ | 全局基线 |
 
-同句同被试对（即自身重复）不计入任何组。
+同句同被试对（即自身重复）不计入任何组。ZuCo 中每被试每句仅记录一次，故不存在"同句同被试跨 session"组。
 
 #### 步骤 3：统计
 
 每组计算：$\text{mean}$、$\text{std}$、$\text{median}$
 
-**判定排序**：按各组 mean 降序排列，理想情况下应为：同句异被试 > 异句异被试（句子信号存在的证据）
+**判定排序**：按各组 mean 降序排列，理想情况下应为：同句异被试 > 异句异被试（句子信号存在的证据）。
 
-**噪声对照**：对 $X^\text{noise}$ 运行相同分组余弦相似度分析。噪声下三组 mean 应接近相等（因为随机向量彼此正交，相似度接近 0），且各组间无显著差异。若 EEG 的"同句异被试"组显著高于噪声对应组，说明 EEG 中存在可检测的句子一致性。
+**跨 session 读解**（致力回答"同被试不同 session 的相似度"）：
+
+| 排序关系 | 含义 |
+|---------|------|
+| 同被试异句跨session ≈ 同被试异句同session | Session 不引入额外差异，同一被试的跨 session EEG 与同 session 内同等相似 |
+| 同被试异句跨session 显著 < 同被试异句同session | Session 效应显著，同一被试在不同 session 的 EEG 表示发生系统性漂移 |
+| 同被试异句跨session ≈ 异句异被试 | 同一被试的跨 session EEG 与随机两个人相似，被试个体特征在跨 session 时丢失 |
+
+**噪声对照**：对 $X^\text{noise}$ 运行相同分组余弦相似度分析。噪声下各组 mean 应接近相等（因为随机向量彼此正交，相似度接近 0），且各组间无显著差异。若 EEG 的"同句异被试"组显著高于噪声对应组，说明 EEG 中存在可检测的句子一致性；若"同被试异句跨session"组显著低于同 session 组，则证实 session 效应超出随机波动。
 
 ---
 
@@ -266,9 +343,13 @@ $$\text{SS\_sent}_d = \sum_{s=1}^{S} n_s \left(\bar{y}_{s,d} - \bar{y}_d\right)^
 
 $$\text{SS\_subj}_d = \sum_{p=1}^{P} n_p \left(\bar{y}_{p,d} - \bar{y}_d\right)^2, \quad \bar{y}_{p,d} = \frac{1}{n_p}\sum_{i:\text{subj}[i]=p} y_{i,d}$$
 
+**Session 因子**（分组数 $\leq 2$，排除 `session_unknown`）：
+
+$$\text{SS\_session}_d = \sum_{s \in \{1,2\}} n_s \left(\bar{y}_{s,d} - \bar{y}_d\right)^2$$
+
 #### 步骤 3：计算 η²
 
-$$\eta^2_{\text{sent},d} = \frac{\text{SS\_sent}_d}{\text{SS\_total}_d}, \quad \eta^2_{\text{subj},d} = \frac{\text{SS\_subj}_d}{\text{SS\_total}_d}$$
+$$\eta^2_{\text{sent},d} = \frac{\text{SS\_sent}_d}{\text{SS\_total}_d}, \quad \eta^2_{\text{subj},d} = \frac{\text{SS\_subj}_d}{\text{SS\_total}_d}, \quad \eta^2_{\text{session},d} = \frac{\text{SS\_session}_d}{\text{SS\_total}_d}$$
 
 #### 步骤 4：汇总与判定
 
@@ -276,11 +357,23 @@ $$\eta^2_{\text{sent},d} = \frac{\text{SS\_sent}_d}{\text{SS\_total}_d}, \quad \
 
 **判定准则**：
 
-$$r = \frac{\text{median}(\eta^2_\text{subj})}{\max(\text{median}(\eta^2_\text{sent}),\ 10^{-12})}$$
+$$r_\text{subj\_vs\_sent} = \frac{\text{median}(\eta^2_\text{subj})}{\max(\text{median}(\eta^2_\text{sent}),\ 10^{-12})}$$
 
-$$\text{conclusion} = \begin{cases} \text{subject\_dominant} & r > 3 \\ \text{comparable} & 0.5 < r \leq 3 \\ \text{sentence\_dominant} & r \leq 0.5 \end{cases}$$
+$$\text{conclusion} = \begin{cases} \text{subject\_dominant} & r_\text{subj\_vs\_sent} > 3 \\ \text{comparable} & 0.5 < r_\text{subj\_vs\_sent} \leq 3 \\ \text{sentence\_dominant} & r_\text{subj\_vs\_sent} \leq 0.5 \end{cases}$$
 
-**噪声对照**：对 $X^\text{noise}$ 运行相同 η² 分析。噪声下 $\eta^2_\text{sent} \approx \eta^2_\text{subj} \approx 0$（随机向量不携带任何结构性方差）。若 EEG 的 η² 值显著高于噪声，说明方差分解捕捉到真实效应而非数值噪声。
+**Session 效应判定**：额外计算
+
+$$r_\text{session\_vs\_sent} = \frac{\text{median}(\eta^2_\text{session})}{\max(\text{median}(\eta^2_\text{sent}),\ 10^{-12})}$$
+
+| $r_\text{session\_vs\_sent}$ | 结论 |
+|------|------|
+| $\gg 1$ | Session 效应主导，跨 session 可比性存疑 |
+| $\approx 1$ | Session 效应与句子效应相当 |
+| $\ll 1$ | Session 效应微弱，跨 session 数据可安全合并 |
+
+**task1-SR 内部对照**：仅在 `task1-SR` 样本上重跑 η² 分析，分离 session 与 task 混淆。若 task1-SR 内 $\eta^2_\text{session}$ 显著低于全局，说明全局 session 效应主要由 task 差异驱动；若两者相当，则 session 效应独立于 task。
+
+**噪声对照**：对 $X^\text{noise}$ 运行相同 η² 分析。噪声下 $\eta^2_\text{sent} \approx \eta^2_\text{subj} \approx \eta^2_\text{session} \approx 0$（随机向量不携带任何结构性方差）。若 EEG 的 η² 值显著高于噪声，说明方差分解捕捉到真实效应而非数值噪声。
 
 ---
 
@@ -297,6 +390,8 @@ $$\text{band\_feat}_b = \tilde{X}_{:,b,:} \in \mathbb{R}^{N \times 105}$$
 输出：每个频带的 $\text{median}(\eta^2_\text{sent})$ 和 $\text{median}(\eta^2_\text{subj})$（以及 mean）。
 
 频带顺序：theta1、theta2、alpha1、alpha2、beta1、beta2、gamma1、gamma2
+
+**Session 频带级分解**：同时对每个频带计算 $\eta^2_\text{session}$，识别 session 效应在哪些频带更显著（预期低频带 theta/alpha 更易受疲劳等因素影响）。输出字段在 `band_level_eta_squared.json` 中与句子/被试的频带 η² 并列。
 
 ---
 
@@ -319,8 +414,11 @@ $$X_\text{tsne} = \text{t-SNE}(X_\text{pca},\ n\_\text{components}=2,\ n\_\text{
 | 5, 30, 50 | 按被试 ID |
 | 30 only | 按句子 ID |
 | 30 only | 按 task |
+| 30 only | 按 session（新增）|
 
-输出文件：`tsne_by_{subject|sentence|task}_p{5|30|50}.png`
+若"按 session"图中两个 session 呈现明显聚类，说明 session 效应视觉可见；若两 session 样本均匀混合，则 session 效应微弱。同一被试的两 session 样本可进一步用线段连接，观察是否沿固定方向偏移。
+
+输出文件：`tsne_by_{subject|sentence|task|session}_p{5|30|50}.png`
 
 ---
 
@@ -423,13 +521,58 @@ $$\mathbb{E}[r_i^\text{noise}] = \frac{M+1}{2}, \quad \text{R@1}^\text{noise} \a
 
 ---
 
+### A3-SessionRetrieval：同被试跨 Session 聚合检索
+
+**目的**：直接量化"同一被试在不同 session 的 EEG 相似度"。将检索单位换为 session 内按句子聚合的向量，query 为 Session 1 表示，candidate 为 Session 2 表示，检验同一句子在跨 session 时能否互相匹配。
+
+**数据**：测试集中同时出现在两个 session 的被试子集（排除 `session_unknown`），使用未经 per-subject 归一化的 `mean_pool` 特征。
+
+#### 步骤 1：按 session 内聚合（全体被试合并）
+
+对每个句子 $s$ 和每个 session $k \in \{1, 2\}$：
+
+$$\mathbf{v}^{(k)}_s = \frac{1}{|\mathcal{I}_s^{(k)}|} \sum_{i \in \mathcal{I}_s^{(k)}} \mathbf{x}_i, \quad \mathcal{I}_s^{(k)} = \{i : \text{sent}[i] = s,\ \text{session}[i] = k\}$$
+
+仅保留两个 session 均有样本的 $M$ 个公共句子。由于 task1-SR 仅有约 130/2 = 65 句的重叠可能性，实际测试集内 M 受 task1-SR 前后半句子分布限制，若 $M < 5$ 则输出 `{"error": "too_few_common_sentences"}` 并跳过。
+
+#### 步骤 2：L2 归一化与余弦相似度矩阵
+
+$$\hat{\mathbf{u}}_s = \frac{\mathbf{v}^{(1)}_s}{\max(\|\mathbf{v}^{(1)}_s\|_2, 10^{-8})}, \quad \hat{\mathbf{v}}_s = \frac{\mathbf{v}^{(2)}_s}{\max(\|\mathbf{v}^{(2)}_s\|_2, 10^{-8})}$$
+
+$$\mathbf{S} \in \mathbb{R}^{M \times M}, \quad S_{ij} = \hat{\mathbf{u}}_i \cdot \hat{\mathbf{v}}_j$$
+
+query = Session 1 聚合，candidate = Session 2 聚合，避免自检索。
+
+#### 步骤 3：检索指标
+
+与 A3-Retrieval 相同，输出 R@1 / R@5 / R@10 / MRR / Mean Rank / Median Rank。
+
+#### 步骤 4：被试内版本（可选，更直接地测同一被试）
+
+对每位同时在两个 session 的被试 $p$ 单独执行步骤 1–3（只用该被试的样本构建 $\mathbf{v}^{(k)}_s$），获得每人的 R@1 等指标，再对被试取均值 ± std。与全体聚合版本对比可判断 session 内聚合异被试是否增强信号。
+
+**task1-SR 内部对照**：仅在 `task1-SR` 样本上重跑步骤 1–4，排除 task 混淆后的跨 session 检索能力（因 task2-NR 仅在 Session 1、task3-TSR 仅在 Session 2，这两个 task 的句子无法提供跨 session 聚合向量）。
+
+**噪声对照**：对 $X^\text{noise}$ 运行相同流程，预期 R@1 $\approx 1/M$。
+
+**解读**：
+
+| 结果 | 含义 |
+|------|------|
+| R@1 显著 > 随机基线 | 同一句子在两个 session 的 EEG 表示存在稳定对应，跨 session 相似度可用 |
+| R@1 ≈ 随机基线 | 同一句子在两 session 的聚合表示几乎不相关，session 效应完全破坏跨 session 可比性 |
+| R@1 介于两者之间 | 存在部分跨 session 信号，但受 session 差异干扰 |
+| 被试内 R@1 均值 $\gg$ 全体聚合 R@1 | Session 内聚合异被试的操作引入了额外噪声，个体内跨 session 一致性更强 |
+
+---
+
 ## 输出文件
 
 | 文件 | 内容 |
 |------|------|
-| `linear_probe_results.json` | A1a/A1b/A1c 各含三组（`word_eeg` / `sent_eeg` / `noise`）LOSO 5 折结果、A2 余弦相似度（EEG + Noise）、η² 分析（EEG + Noise）、A3 聚合检索（EEG + Noise）|
-| `band_level_eta_squared.json` | A2-band 每个频带的 η² 结果（EEG）|
-| `subject_effect_analysis.json` | A2 余弦相似度 + η² 的完整字段（EEG）|
-| `tsne_by_*.png` | A2-tSNE 可视化图像 |
+| `linear_probe_results.json` | A1a/A1b/A1c 三种池化变体各含三组（`word_eeg` / `sent_eeg` / `noise`）LOSO 5 折结果；A1d 跨 session Linear Probe 各被试 accuracy 及汇总（含 task1-SR 对照，`word_eeg` / `sent_eeg` / `noise` 三组并列）；A3-LP 去被试化 Linear Probe；A3-Retrieval 被试聚合检索；A3-SessionRetrieval 同被试跨 session 聚合检索（全体 / 被试内 / task1-SR 对照，EEG + Noise）|
+| `subject_effect_analysis.json` | A2-Cosine 五组余弦相似度统计（含"同被试异句同 session"/"同被试异句跨 session"，EEG + Noise）；A2-Eta 三因素 η²（sentence / subject / session），含 `r_subj_vs_sent`、`r_session_vs_sent` 判定与 task1-SR 内部对照 |
+| `band_level_eta_squared.json` | A2-band 每个频带的 η² 结果，含 sentence / subject / session 三因素频带级分解（EEG）|
+| `tsne_by_*.png` | A2-tSNE 可视化图像，命名为 `tsne_by_{subject\|sentence\|task\|session}_p{5\|30\|50}.png`，其中 `session` 着色固定 perplexity=30 |
 | `validate_eeg_signal.log` | 运行日志 |
 

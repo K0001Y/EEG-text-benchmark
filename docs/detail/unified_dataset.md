@@ -175,8 +175,35 @@ test_texts  = set(unique_texts[n_train + n_val:])
 
 - **`meta.dataset`**：`"ZuCo1"` 或 `"ZuCo2"`
 - **`meta.text_uid`**：全局唯一文本 ID（`(dataset, task, sentence)` 三元组的递增整数映射）
+- **`meta.session`**：样本所属的实验 session（供跨 session 诊断实验使用，见下文 Session 标注规则）
 - **`meta.sentiment_label`**（仅 task1-SR）：从 `data/ZuCo1/task_materials/sentiment_labels_task1.csv` 加载
 - **`meta.relation_label`**（task2-NR / task3-TSR）：从对应的 `relations_labels_*.csv` 加载
+
+#### Session 标注规则
+
+根据 ZuCo 原始实验设计（Hollenstein et al., 2018），每位被试在两个实验阶段完成所有任务：
+
+- **Session 1**：`task2-NR`（全部）+ `task1-SR` 前半部分
+- **Session 2**：`task3-TSR`（全部）+ `task1-SR` 后半部分
+- **ZuCo v2 (`task2-NR-2.0`)**：单独记录，暂标为 `"session_unknown"`
+
+句子呈现顺序对所有被试完全一致，故可根据 `meta.task` 和 `meta.sentence_index` 在构建阶段统一判定（见 [`_assign_session`](file:///root/autodl-tmp/benchmark/benchmark_eval/data_processing/build_unified_dataset.py)）：
+
+| 任务 | Session 1 | Session 2 | 判定条件 |
+|------|-----------|-----------|----------|
+| `task1-SR` | 前半部分 | 后半部分 | `sentence_index < N_task1 // 2` → Session 1；否则 Session 2 |
+| `task2-NR` | 全部 | — | 均为 Session 1 |
+| `task3-TSR` | — | 全部 | 均为 Session 2 |
+| `task2-NR-2.0` | — | — | `session_unknown` |
+
+其中 $N_\text{task1}$ 为所有样本中 `task1-SR` 的最大 `sentence_index + 1`（约 400）。构建时会输出日志：
+
+```
+Session split for task1-SR uses N_task1=<N> (first half -> session_1, second half -> session_2)
+Session distribution over all samples: {'session_1': ..., 'session_2': ..., 'session_unknown': ...}
+```
+
+> **Task 与 Session 的混淆**：task2-NR 仅在 Session 1、task3-TSR 仅在 Session 2，因此跨 session 诊断需在 `task1-SR` 内部单独对照，以分离真正的 session 效应。此规则与 [`experiment_A_details.md`](file:///root/autodl-tmp/benchmark/docs/detail/experiment_A_details.md) 步骤 4 完全一致。
 
 ---
 
@@ -222,6 +249,7 @@ unified_zuco.pkl
 | `meta.seq_len_with_sent` | `int` | 含句级 token 的有效长度 |
 | `meta.dataset` | `str` | `"ZuCo1"` 或 `"ZuCo2"` |
 | `meta.text_uid` | `int` | 全局唯一文本整数 ID |
+| `meta.session` | `str` | 样本所属 session：`"session_1"` / `"session_2"` / `"session_unknown"`（ZuCo v2）；用于诊断线 A 的 A1d 与 A3-SessionRetrieval 等跨 session 实验 |
 | `meta.sentiment_label` | `int` | 情感标签（仅 task1-SR，可能缺失）|
 | `meta.relation_label` | `str` | 关系标签（仅 task2-NR / task3-TSR，可能缺失）|
 
@@ -266,6 +294,7 @@ eeg = sample["eeg_word_norm1d"]    # Tensor (56, 840)
 mask = sample["mask_word"]         # Tensor (56,)
 text = sample["reference_text"]    # str
 subject = sample["meta"]["subject"] # str
+session = sample["meta"]["session"] # "session_1" / "session_2" / "session_unknown"
 ```
 
 ### 4.2 `__getitem__` 返回字段

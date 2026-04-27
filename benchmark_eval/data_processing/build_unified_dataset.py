@@ -739,8 +739,28 @@ def _load_task3_relation_labels(materials_dir: str, logger) -> Dict[str, str]:
     return mapping
 
 
+def _assign_session(task_name: str, sentence_index: int, total_task1_sentences: int) -> str:
+    """根据 ZuCo 原始实验设计标注样本的 session 归属。
+
+    ZuCo（Hollenstein et al., 2018）每位被试在两个实验阶段完成所有任务：
+      - Session 1：task2-NR（全部）+ task1-SR 前半部分
+      - Session 2：task3-TSR（全部）+ task1-SR 后半部分
+      - task2-NR-2.0（ZuCo v2）单独记录，暂作 `session_unknown`
+    """
+    if task_name == "task2-NR":
+        return "session_1"
+    if task_name == "task3-TSR":
+        return "session_2"
+    if task_name == "task1-SR":
+        if total_task1_sentences <= 0:
+            return "session_unknown"
+        mid = total_task1_sentences // 2
+        return "session_1" if sentence_index < mid else "session_2"
+    return "session_unknown"
+
+
 def _enrich_samples_with_metadata_and_labels(samples: List[Dict[str, Any]], logger) -> None:
-    """补全 meta 中的 dataset/text_uid 以及情感与关系标签。"""
+    """补全 meta 中的 dataset/text_uid/session 以及情感与关系标签。"""
     this_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(this_dir)          # benchmark_eval
     benchmark_root = os.path.dirname(project_root)    # benchmark
@@ -750,8 +770,26 @@ def _enrich_samples_with_metadata_and_labels(samples: List[Dict[str, Any]], logg
     rel_task2_map = _load_task2_relation_labels(zuco1_materials, logger)
     rel_task3_map = _load_task3_relation_labels(zuco1_materials, logger)
 
+    # 统计 task1-SR 的总句数（按原始 MAT 的句序），用于划分前/后半 session
+    total_task1_sentences = 0
+    for rec in samples:
+        meta = rec.get("meta") or {}
+        if meta.get("task") == "task1-SR":
+            idx = int(meta.get("sentence_index", -1))
+            if idx + 1 > total_task1_sentences:
+                total_task1_sentences = idx + 1
+    if total_task1_sentences > 0:
+        logger.info(
+            "Session split for task1-SR uses N_task1=%d (first half -> session_1, second half -> session_2)",
+            total_task1_sentences,
+        )
+    else:
+        logger.warning("No task1-SR samples found; task1-SR session assignment will be 'session_unknown'.")
+
     text_uid_map: Dict[tuple, int] = {}
     next_uid = 0
+
+    session_counts: Dict[str, int] = {}
 
     for rec in samples:
         meta = rec.get("meta") or {}
@@ -770,6 +808,12 @@ def _enrich_samples_with_metadata_and_labels(samples: List[Dict[str, Any]], logg
         if "text_uid" not in meta:
             meta["text_uid"] = text_uid_map[uid_key]
 
+        # Session 标注
+        if "session" not in meta:
+            sent_idx = int(meta.get("sentence_index", -1))
+            meta["session"] = _assign_session(task_name, sent_idx, total_task1_sentences)
+        session_counts[meta["session"]] = session_counts.get(meta["session"], 0) + 1
+
         if task_name == "task1-SR":
             label = sentiment_map.get(sentence)
             if label is not None and "sentiment_label" not in meta:
@@ -785,6 +829,8 @@ def _enrich_samples_with_metadata_and_labels(samples: List[Dict[str, Any]], logg
                 meta["relation_label"] = rel
 
         rec["meta"] = meta
+
+    logger.info("Session distribution over all samples: %s", dict(sorted(session_counts.items())))
 
 
 def main() -> None:
