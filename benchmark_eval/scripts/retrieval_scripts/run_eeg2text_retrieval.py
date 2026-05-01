@@ -316,11 +316,26 @@ def main():
     })
     grp = grouped_metrics(eeg_vecs, text_vecs, gt_idx, meta_list)
 
-    # 8. 保存
+    # 8. 保存指标
     result = {"overall": overall, "grouped": grp}
     out_path = os.path.join(output_dir, "retrieval_metrics.json")
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
+
+    # 8b. 落盘嵌入向量
+    try:
+        from evaluation.embedding_io import save_embeddings
+        emb_path = save_embeddings(
+            output_dir=output_dir,
+            v_eeg=eeg_vecs, v_text=text_vecs,
+            gt_idx=gt_idx, meta_list=meta_list,
+            noise_type=args.noise_type, model_name="eeg2text",
+            ranks=ranks.to(int).tolist(),
+            unique_texts=unique_texts,
+        )
+        logger.info("Embeddings → %s", emb_path)
+    except Exception as _emb_err:  # pragma: no cover
+        logger.warning("save_embeddings failed: %s", _emb_err)
 
     sep = "=" * 60
     print(f"\n{sep}")

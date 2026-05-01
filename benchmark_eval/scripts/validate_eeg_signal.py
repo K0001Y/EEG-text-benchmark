@@ -43,6 +43,17 @@ from data_processing.dataset import UnifiedDataset
 from utils.logging_utils import setup_logging
 from constants import EEG_CHANNELS, EEG_BANDS, EEG_WORD_DIM, MAX_LEN, DEFAULT_SEED
 
+# 显著性检验封装模块（轻量延迟导入式）
+try:
+    from evaluation.significance import (
+        wilcoxon_paired, binomial_vs_baseline, holm_bonferroni,
+        permutation_eta, mannwhitney_u,
+    )
+    from evaluation.embedding_io import save_significance_json
+    _SIG_OK = True
+except Exception:
+    _SIG_OK = False
+
 # 频带名称
 BAND_NAMES = ["theta1", "theta2", "alpha1", "alpha2",
               "beta1", "beta2", "gamma1", "gamma2"]
@@ -1254,6 +1265,223 @@ def run_session_retrieval(features, sentence_ids, subject_ids, session_ids,
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# A 线显著性检验：统一调度
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _folds_topk(a1_entry: Dict[str, Any], k: str) -> List[float]:
+    """从 A1 某一组的 fold 结果中抽取 top1/top5/top10 列表。"""
+    folds = (a1_entry or {}).get("folds", []) or []
+    return [float(f.get(k, float("nan"))) for f in folds]
+
+
+def _line_a_eta_significance(feats, sentence_ids, subject_ids,
+                             n_dims: int = 5, n_perm: int = 200, seed: int = 42):
+    """维度级 eta^2 对比（sentence vs subject）+ permutation 抽样。"""
+    feats = np.asarray(feats)
+    n_features = int(feats.shape[1])
+    sent_arr = np.asarray(sentence_ids)
+    subj_arr = np.asarray(subject_ids)
+
+    eta_sent = np.zeros(n_features)
+    eta_subj = np.zeros(n_features)
+    u_sent = np.unique(sent_arr)
+    u_subj = np.unique(subj_arr)
+    for d in range(n_features):
+        y = feats[:, d]
+        gm = y.mean()
+        ss_total = float(np.sum((y - gm) ** 2))
+        if ss_total < 1e-12:
+            continue
+        ss_sent = 0.0
+        for s in u_sent:
+            m = (sent_arr == s)
+            n_s = int(m.sum())
+            if n_s > 0:
+                ss_sent += n_s * (y[m].mean() - gm) ** 2
+        ss_subj = 0.0
+        for s in u_subj:
+            m = (subj_arr == s)
+            n_s = int(m.sum())
+            if n_s > 0:
+                ss_subj += n_s * (y[m].mean() - gm) ** 2
+        eta_sent[d] = ss_sent / ss_total
+        eta_subj[d] = ss_subj / ss_total
+
+    result: Dict[str, Any] = {}
+    try:
+        result["subj_vs_sent_wilcoxon"] = wilcoxon_paired(
+            eta_subj.tolist(), eta_sent.tolist())
+    except Exception as exc:
+        result["subj_vs_sent_wilcoxon"] = {"error": str(exc)}
+
+    rng = np.random.default_rng(seed)
+    dims = rng.choice(n_features, size=min(n_dims, n_features), replace=False)
+    samples = []
+    for d in dims:
+        y = feats[:, int(d)].astype(np.float64)
+        try:
+            p_sent = permutation_eta(y, sent_arr.tolist(),
+                                     n_perm=n_perm, seed=seed + int(d))
+            p_subj = permutation_eta(y, subj_arr.tolist(),
+                                     n_perm=n_perm, seed=seed + int(d) + 1)
+            samples.append({
+                "dim": int(d),
+                "sentence": p_sent,
+                "subject": p_subj,
+            })
+        except Exception as exc:
+            samples.append({"dim": int(d), "error": str(exc)})
+    result["permutation_sample"] = samples
+    return result
+
+
+def run_line_a_significance(*, all_results: Dict[str, Any],
+                            word_feats_mp, noise_feats,
+                            sentence_ids, subject_ids,
+                            logger) -> Dict[str, Any]:
+    """A 线显著性检验统一调度器（全部委托 evaluation.significance 执行）。
+
+    覆盖：
+      - A1a/A1b/A1c：5 折配对 Wilcoxon（word/sent/noise 两两对比）+
+        vs_random 二项检验（three sources × top-1）。
+      - A2_cosine：观察性统计（仅记录 mean/delta）。
+      - A2_eta：维度级 subj vs sent 配对 Wilcoxon + permutation 抽样（5 维）。
+      - A3_lp：去被试化 LP 与 A1a word_eeg 的 5 折配对 Wilcoxon。
+      - A3_session_retrieval：r@K vs 随机基线 k/M 的二项检验。
+      - correction：A1 word_vs_noise 9 组（3 variant × 3 top-k）Holm-Bonferroni。
+    """
+    results: Dict[str, Any] = {"correction": {}}
+    a1_word_vs_noise: List[Tuple[str, Optional[float]]] = []
+
+    # ── A1a / A1b / A1c ──
+    for a1_key in ("A1a", "A1b", "A1c"):
+        a1 = all_results.get(a1_key) or {}
+        if not a1:
+            continue
+        entry: Dict[str, Any] = {}
+        for tag, src_a, src_b in (
+            ("word_vs_noise", "word_eeg", "noise"),
+            ("sent_vs_noise", "sent_eeg", "noise"),
+            ("word_vs_sent",  "word_eeg", "sent_eeg"),
+        ):
+            for k in ("top1", "top5", "top10"):
+                xa = _folds_topk(a1.get(src_a), k)
+                xb = _folds_topk(a1.get(src_b), k)
+                if len(xa) == len(xb) and len(xa) >= 3:
+                    try:
+                        res = wilcoxon_paired(xa, xb)
+                    except Exception as exc:
+                        res = {"error": str(exc)}
+                    entry[f"{tag}.{k}"] = res
+                    if tag == "word_vs_noise":
+                        a1_word_vs_noise.append(
+                            (f"{a1_key}.{tag}.{k}", res.get("p")))
+
+        for src in ("word_eeg", "sent_eeg", "noise"):
+            r = a1.get(src) or {}
+            mt1 = r.get("mean_top1")
+            n = r.get("n_samples")
+            baseline = r.get("random_baseline")
+            if mt1 is not None and n and baseline:
+                try:
+                    k_succ = int(round(float(mt1) * int(n)))
+                    entry[f"vs_random.{src}.top1"] = binomial_vs_baseline(
+                        k_succ, int(n), float(baseline))
+                except Exception as exc:
+                    entry[f"vs_random.{src}.top1"] = {"error": str(exc)}
+        results[a1_key] = entry
+
+    # ── A2 余弦：observational ──
+    a2c = all_results.get("A2_cosine_similarity") or {}
+    if a2c:
+        eeg_same = (a2c.get("eeg") or {}).get("same_sent_diff_subj", {}).get("mean")
+        eeg_diff = (a2c.get("eeg") or {}).get("diff_sent_diff_subj", {}).get("mean")
+        noi_same = (a2c.get("noise") or {}).get("same_sent_diff_subj", {}).get("mean")
+        delta = None
+        if eeg_same is not None and eeg_diff is not None:
+            delta = float(eeg_same) - float(eeg_diff)
+        results["A2_cosine"] = {
+            "note": "observational; statistic_only",
+            "eeg_same_sent_mean": eeg_same,
+            "eeg_diff_sent_mean": eeg_diff,
+            "eeg_delta_same_minus_diff": delta,
+            "noise_same_sent_mean": noi_same,
+        }
+
+    # ── A2 eta：维度级 Wilcoxon + permutation 抽样 ──
+    try:
+        if word_feats_mp is not None and len(word_feats_mp) == len(sentence_ids) \
+                and len(word_feats_mp) == len(subject_ids):
+            results["A2_eta"] = _line_a_eta_significance(
+                word_feats_mp, sentence_ids, subject_ids)
+    except Exception as exc:
+        results["A2_eta"] = {"error": str(exc)}
+
+    # ── A3-LP：vs A1a word_eeg 配对 Wilcoxon ──
+    a3 = all_results.get("A3_desubject") or {}
+    a3_lp = a3.get("linear_probe_desubject") if isinstance(a3, dict) else None
+    a1a_word = (all_results.get("A1a") or {}).get("word_eeg")
+    if a3_lp and a1a_word:
+        a3_entry: Dict[str, Any] = {}
+        for k in ("top1", "top5", "top10"):
+            xa = _folds_topk(a3_lp, k)
+            xb = _folds_topk(a1a_word, k)
+            if len(xa) == len(xb) and len(xa) >= 3:
+                try:
+                    a3_entry[f"a3lp_vs_a1a_word.{k}"] = wilcoxon_paired(xa, xb)
+                except Exception as exc:
+                    a3_entry[f"a3lp_vs_a1a_word.{k}"] = {"error": str(exc)}
+        results["A3_lp"] = a3_entry
+
+    # ── A3-SessionRetrieval：r@K vs k/M 二项检验 ──
+    a3sr = all_results.get("A3_session_retrieval") or {}
+    if a3sr:
+        entry_sr: Dict[str, Any] = {}
+        for src_key in ("eeg", "noise"):
+            src_res = a3sr.get(src_key) or {}
+            for agg in ("aggregated_all", "aggregated_task1_sr"):
+                r = src_res.get(agg) or {}
+                M = r.get("n_sentences")
+                if not M:
+                    continue
+                for k in (1, 5, 10):
+                    rk_val = r.get(f"r@{k}")
+                    if rk_val is None:
+                        continue
+                    try:
+                        k_succ = int(round(float(rk_val) * int(M)))
+                        baseline = float(k) / float(M)
+                        entry_sr[f"{src_key}.{agg}.r@{k}_vs_random"] = (
+                            binomial_vs_baseline(k_succ, int(M), baseline))
+                    except Exception as exc:
+                        entry_sr[f"{src_key}.{agg}.r@{k}_vs_random"] = {
+                            "error": str(exc)}
+        results["A3_session_retrieval"] = entry_sr
+
+    # ── Holm-Bonferroni：A1 word_vs_noise 9 组 ──
+    valid = [(lbl, p) for lbl, p in a1_word_vs_noise if p is not None]
+    if valid:
+        labels = [v[0] for v in valid]
+        pvals = [float(v[1]) for v in valid]
+        try:
+            holm = holm_bonferroni(pvals, alpha=0.05)
+            results["correction"]["a1_word_vs_noise_holm"] = {
+                "method": holm.get("method", "holm_bonferroni"),
+                "labels": labels,
+                "p_raw": pvals,
+                "p_adj": holm.get("adjusted", []),
+                "reject_at_0.05": holm.get("significant", []),
+                "n_tests": holm.get("n_tests", len(pvals)),
+                "alpha": holm.get("alpha", 0.05),
+            }
+        except Exception as exc:
+            results["correction"]["a1_word_vs_noise_holm"] = {"error": str(exc)}
+
+    logger.info("A 线显著性检验完成，产出 key 数=%d", len(results))
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Main
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -1521,6 +1749,24 @@ def main():
     with open(subj_path, "w", encoding="utf-8") as f:
         json.dump(subj_analysis, f, ensure_ascii=False, indent=2, default=str)
     logger.info("被试效应分析已保存 -> %s", subj_path)
+
+    # ── 显著性检验（统一封装调用）──
+    if _SIG_OK:
+        try:
+            sig_results = run_line_a_significance(
+                all_results=all_results,
+                word_feats_mp=word_feats_mp,
+                noise_feats=noise_feats,
+                sentence_ids=test_data["sentence_id_list"],
+                subject_ids=test_data["subject_list"],
+                logger=logger,
+            )
+            sig_path = save_significance_json(args.output_dir, sig_results)
+            logger.info("显著性检验已保存 -> %s", sig_path)
+        except Exception as exc:  # pragma: no cover
+            logger.warning("显著性检验失败：%s", exc)
+    else:
+        logger.warning("evaluation.significance 未加载，跳过显著性检验")
 
     # ── 综合打印 ──
     sep = "=" * 60

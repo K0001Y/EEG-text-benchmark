@@ -87,6 +87,10 @@ $$\mathbf{f}_i^\text{noise} \sim \mathcal{N}(\mathbf{0},\ \mathbf{I}_{840}), \qu
 
 **在 A 线各子实验中的使用方式**：将 $X^\text{noise} \in \mathbb{R}^{N \times 840}$ 替代 $X^\text{EEG}$ 代入相同流程，其余（标签、被试分组、分类器参数）完全不变。若噪声结果贴近理论随机基线，说明实验流程无 shortcut；若 EEG 结果显著超越噪声，说明 EEG 中确实存在有效信号。
 
+### 步骤 5：降维可视化（公共产物）
+
+对步骤 2/3 产出的三组 840 维特征矩阵 $X^\text{word}$、$X^\text{sent}$、$X^\text{noise}$ 统一执行 PCA(50) → t-SNE(2) 降维，perplexity $\in \{5, 30, 50\}$，`random_state=42`，得到二维坐标矩阵 $Z \in \mathbb{R}^{N \times 2}$。按 `subject_id / sentence_id / task / session` 四种方案染色，输出至 `tsne_global/tsne_{signal}_by_{color}_p{perp}.png`，用于直观对比 EEG 与噪声下样本分布结构的差异。
+
 ### 步骤 4：Session 标注（用于跨 session 分析）
 
 根据 ZuCo 原始实验设计（Hollenstein et al., 2018），每位被试在两个实验阶段完成所有任务：
@@ -209,6 +213,18 @@ $$\text{Random Baseline} = \frac{1}{130} \approx 0.77\%$$
 
 **三组运行方式**：将相同 LOSO 5 折 CV 流程分别应用于 $X^\text{word}$、$X^\text{sent}$、$X^\text{noise}$，结果以 `"word_eeg"` / `"sent_eeg"` / `"noise"` 三个键并列记录在 JSON 中。
 
+#### 步骤 4：降维可视化
+
+对三组 A1a 特征矩阵 $X^\text{word}$、$X^\text{sent}$、$X^\text{noise}$ 分别执行 PCA(50) → t-SNE(2)，按 `subject_id` / `sentence_id` / `task` / `session` 四种维度染色。重点观察：
+
+| 着色维度 | 预期现象 | 对应诊断 |
+|---------|---------|---------|
+| subject_id | 同被试样本聚类 → 被试效应主导 | 与 A2-Eta `r_subj_vs_sent` 互证 |
+| sentence_id | 同句样本聚类 → 句子信号可见 | 与 Linear Probe Top-K 互证 |
+| task / session | 同 task/session 聚类 → 任务/阶段漂移 | 与 A1d / A2-Cosine 跨 session 组互证 |
+
+噪声组降维图应近似均匀分布，无任何着色簇，作为"无结构"基线。输出文件：`tsne_a1a_{word|sent|noise}_by_{subject|sentence|task|session}_p30.png`。
+
 ---
 
 ### A1b：Duration-Weighted Pool
@@ -264,6 +280,8 @@ $$\text{baseline}_p = \frac{\max(n_{p,1},\ n_{p,2})}{n_{p,1} + n_{p,2}}, \quad \
 **输出**：每位被试的 5 折均值 accuracy 及全体被试均值 ± std。
 
 **task1-SR 内部对照**：仅在 `task1-SR` 任务内部重复上述流程，排除 task2-NR / task3-TSR 的 task 混淆后的 session 可分性。若 task1-SR 内 accuracy 显著低于全局结果，说明全局 session 可分主要由 task 差异驱动；若两者相当，则 session 效应独立于 task。
+
+**降维可视化**：对每位同时出现在两个 session 的被试 $p$，取其子矩阵 $X_p \in \mathbb{R}^{|\mathcal{I}_p| \times 840}$，单独执行 PCA → t-SNE 并按 session 二色染色，输出 `tsne_a1d_subj{p}_by_session.png`；同时对全体被试的 task1-SR 子集绘制 `tsne_a1d_task1sr_by_session.png`，观察剥离 task 混淆后 session 簇是否仍可见。噪声组同步绘制作为对照。
 
 **解读**：
 
@@ -393,9 +411,11 @@ $$\text{band\_feat}_b = \tilde{X}_{:,b,:} \in \mathbb{R}^{N \times 105}$$
 
 **Session 频带级分解**：同时对每个频带计算 $\eta^2_\text{session}$，识别 session 效应在哪些频带更显著（预期低频带 theta/alpha 更易受疲劳等因素影响）。输出字段在 `band_level_eta_squared.json` 中与句子/被试的频带 η² 并列。
 
+**频带级降维可视化**：对每个频带的 $\text{band\_feat}_b \in \mathbb{R}^{N \times 105}$ 单独执行 PCA(50) → t-SNE(2)，按 `sentence_id` / `subject_id` 分别染色，输出 `tsne_band_{theta1|theta2|alpha1|alpha2|beta1|beta2|gamma1|gamma2}_by_{sentence|subject}_p30.png`。通过视觉对比找出哪个频带的句子簇最清晰，与步骤输出的 $\eta^2_\text{sent}$ 频带排序互证。
+
 ---
 
-### A2-tSNE：t-SNE 可视化
+### A2-tSNE：t-SNE 可视化（汇总）
 
 #### 步骤 1：PCA 预降维
 
@@ -465,6 +485,19 @@ $$\Delta\text{Top-1} = \text{Top-1}_\text{A3-LP} - \text{Top-1}_\text{A1a-LOSO}$
 
 若 $\Delta > 0$，说明去被试化提升了句子信号的可检测性。
 
+#### 步骤 4：去被试化前后的降维对比可视化
+
+将归一化前的 $X$ 与归一化后的 $\tilde{X}$ 分别执行 PCA(50) → t-SNE(2)，perplexity=30，random_state=42，按 `subject_id` 和 `sentence_id` 两种维度染色，输出四张并排图：
+
+| 文件 | 数据 | 着色 | 预期结果 |
+|------|------|------|---------|
+| `tsne_a3_before_by_subject.png` | $X$ | subject_id | 同被试明显聚类（被试效应主导）|
+| `tsne_a3_after_by_subject.png` | $\tilde{X}$ | subject_id | 被试簇消散或大幅深入混合 |
+| `tsne_a3_before_by_sentence.png` | $X$ | sentence_id | 句子簇不明显 |
+| `tsne_a3_after_by_sentence.png` | $\tilde{X}$ | sentence_id | 句子簇是否浮现（验证去被试化有效性的关键视觉证据）|
+
+该对比图组将 $\Delta\text{Top-1}$ 的数字结果转为可见的空间结构变化，是 A3 最具说明力的产物。同步对 $X^\text{noise}$ 应用相同去被试化流程并绘制对照图，预期前后分布均无结构。
+
 ---
 
 ### A3-Retrieval：被试聚合检索（分组交叉验证）
@@ -519,6 +552,10 @@ $$\mathbb{E}[r_i^\text{noise}] = \frac{M+1}{2}, \quad \text{R@1}^\text{noise} \a
 
 若 EEG 的 R@1 / MRR 显著超越噪声基线，说明跨被试组聚合后 EEG 表示仍保留句子级一致性。
 
+#### 步骤 7：聚合向量的降维可视化
+
+将 $\{\mathbf{v}^A_s\}_{s=1}^{M}$ 与 $\{\mathbf{v}^B_s\}_{s=1}^{M}$（共 $2M$ 条 840 维向量）拼接后统一执行 PCA(50) → t-SNE(2)，两组用不同形状标记（A 组圆点 / B 组三角），同一 sentence_id 的 A/B 点用同色并用细线段连接，输出 `tsne_a3_retrieval_pairs.png`。线段越短表示同句在两组聚合后越相似，与 R@K 和 MRR 互证；噪声组同步绘制 `tsne_a3_retrieval_pairs_noise.png`，预期任意同色线段走向随机、长短分布均匀。
+
 ---
 
 ### A3-SessionRetrieval：同被试跨 Session 聚合检索
@@ -555,6 +592,18 @@ query = Session 1 聚合，candidate = Session 2 聚合，避免自检索。
 
 **噪声对照**：对 $X^\text{noise}$ 运行相同流程，预期 R@1 $\approx 1/M$。
 
+#### 步骤 5：跨 Session 聚合向量的降维可视化
+
+将 $\{\mathbf{v}^{(1)}_s\}_{s=1}^{M}$ 与 $\{\mathbf{v}^{(2)}_s\}_{s=1}^{M}$ 拼接后统一执行 PCA(50) → t-SNE(2)，Session 1 以圆点、Session 2 以三角表示，同 sentence_id 用同色并用细线段连接，输出 `tsne_a3_session_pairs.png`。关键观察：
+
+| 现象 | 含义 |
+|------|------|
+| 同色线段普遍短 | Session 漂移小，同句跨 session 可匹配 |
+| 同色线段普遍长且方向一致 | 存在系统性 session 偏移向量 |
+| 同色线段方向随机 | Session 完全破坏句子信号 |
+
+同步对每位被试内版本绘制 `tsne_a3_session_pairs_subj{p}.png`，与全体聚合版本对比判断跨被试聚合是否引入额外噪声。
+
 **解读**：
 
 | 结果 | 含义 |
@@ -566,6 +615,118 @@ query = Session 1 聚合，candidate = Session 2 聚合，避免自检索。
 
 ---
 
+## 显著性检验
+
+所有对比与基线论断均需配套显著性检验，接受阈值 $\alpha = 0.05$（多重比较校正后使用 $\alpha_\text{adj}$），所有 p 值与效应量落盘至 `significance_tests.json`。
+
+### 检验方法统一约定
+
+| 场景 | 首选方法 | 效应量 | 置信区间 |
+|------|---------|--------|---------|
+| 小样本配对（5 折 / 14 被试）| **Wilcoxon 符号秩检验** | Cohen's $d_z$ | 配对 bootstrap 95% CI |
+| 大样本独立对比（百万级相似度对）| **Mann-Whitney U** | 秩移动效应量 $r$ + Cohen's $d$ | bootstrap 95% CI |
+| 检索指标（R@K / MRR / Mean Rank）| **Permutation test**（1000 次打乱 gt_idx）| 与 null 分布均值的标准差偏离 | 经验分位数 95% CI |
+| 与随机基线 $K/M$ 比较 | **二项检验**（精确 binomial test）| 查准率提升量 | Clopper-Pearson CI |
+| 多组对比（频带/条件/模型）| **Friedman 检验 + 事后 Nemenyi** | Kendall's $W$ | — |
+| 组间异质性（被试/任务）| **Kruskal-Wallis** | $\eta^2_H$ | — |
+| 方差分解 $\eta^2$ | **标签置换 permutation test**（1000 次打乱 subject/sentence 标签）| 原始 $\eta^2$ 与 null 分布的偏离 | bootstrap 95% CI |
+
+### 多重比较校正
+
+| 检验类别 | 范围 | 校正方法 |
+|---------|------|---------|
+| A2-Eta 维度级 $\eta^2$（840 维）| 每个特征维度的 p 值 | **Benjamini-Hochberg FDR** |
+| A2-band 跨频带对比（8 个）| 事后两两比较 | **Nemenyi**（已隐含校正）|
+| A1 三组信号 × Top-K（1-5-10）| 3 × 3 = 9 组 | **Holm-Bonferroni** |
+| A3-LP / A3-Retrieval / A3-SessionRetrieval | 跨子实验 | **Holm-Bonferroni**（按实验族分月校正）|
+
+### A1：Linear Probe 的检验
+
+| 比较对 | 方法 | 判定关键 |
+|--------|------|---------|
+| 词级 EEG Top-K vs 噪声 Top-K（每折配对）| 配对 Wilcoxon | $p < 0.05$ 且 $d_z > 0.5$ 方为“EEG 显著优于随机” |
+| 词级 EEG vs 句级 EEG | 配对 Wilcoxon | 判断注视过滤提升是否显著 |
+| Top-K vs 随机基线 $K/130$ | 二项检验 | $p < 0.05$ 方为“有效检测到信号” |
+| A1b 加权 vs A1a 均值（若实现）| 配对 Wilcoxon | 判断加权提升是否显著 |
+
+### A1d：跨 Session 可分性的检验
+
+| 比较对 | 方法 |
+|--------|------|
+| 每位被试 accuracy vs 多数类基线 | 二项检验（以该被试样本数为 $n$）|
+| 全体被试均值 vs 噪声均值 | 配对 Wilcoxon（按被试配对）|
+| 全局 accuracy vs task1-SR 内 accuracy | 配对 Wilcoxon |
+
+单被试 $p$ 值在汇总时用 **Holm-Bonferroni** 校正。
+
+### A2-Cosine：五组相似度对比的检验
+
+样本量达百万量级，**严禁仅报 p 值**（将大量假显著），必须伴随效应量：
+
+| 比较对 | 方法 | 阈值 |
+|--------|------|------|
+| 同句异被试 vs 异句异被试 | Mann-Whitney U + Cohen's $d$ | $\|d\| > 0.2$ 为“小效应”，$>0.5$ 为“中效应” |
+| 同被试异句跨 session vs 同 session | Mann-Whitney U + Cohen's $d$ | 同上 |
+| EEG 各组 vs 噪声对应组 | Mann-Whitney U | $p < 0.05$ 且 $\|d\| > 0.2$ |
+
+所有结果同时报告 `mean_diff`、`cohens_d`、`95%_CI_bootstrap`、`p_value`。
+
+### A2-Eta：方差分解的检验
+
+| 检验目标 | 方法 |
+|---------|------|
+| $\eta^2_\text{subj,d}$ vs $\eta^2_\text{sent,d}$（20·d=1..840）| 维度级配对 Wilcoxon + BH-FDR |
+| 比值 $r_\text{subj\_vs\_sent}$ | 维度重采样 bootstrap 95% CI |
+| $\eta^2_\text{EEG}$ vs $\eta^2_\text{noise}$ | **标签置换 permutation test**：在 EEG 上打乱 subject/sentence 标签 1000 次重算 $\eta^2$，得到 null 分布，判断真实 $\eta^2$ 是否在 95% 尾部 |
+| $r_\text{session\_vs\_sent}$ | 同上 |
+
+### A2-band：频带间对比
+
+对 8 个频带的 $\eta^2_\text{sent,d}$（各 105 维）使用：
+
+- **Friedman 检验**（整体频带差异是否显著）
+- 事后 **Nemenyi 检验**（两两对比）
+- 报告 Kendall's $W$ 一致性系数
+
+### A3-LP：去被试化前后检验
+
+| 比较对 | 方法 |
+|--------|------|
+| A3-LP Top-K vs A1a-LOSO Top-K（同 5 折配对）| 配对 Wilcoxon + Cohen's $d_z$ |
+| 去被试化后 Top-K vs 噪声 Top-K | 配对 Wilcoxon |
+| 去被试化后 Top-K vs 随机基线 | 二项检验 |
+
+判定：$\Delta < 0$ 且 $p < 0.05$ → “去被试化确实劣化检索”，作为被试效应主导的占据性证据。
+
+### A3-Retrieval / A3-SessionRetrieval：检索指标检验
+
+| 比较对 | 方法 |
+|--------|------|
+| R@K vs 随机基线 $K/M$ | 二项检验（或 hypergeometric test）|
+| EEG R@K vs 噪声 R@K | **Permutation test**：固定 EEG 表示，打乱 gt_idx 1000 次 → null R@K 分布 |
+| 全体聚合 vs 被试内聚合 | 按被试配对 Wilcoxon |
+
+报告字段：`r_at_k`、`p_binomial`、`p_permutation`、`null_r_at_k_mean±std`、`bootstrap_95_ci`。
+
+### 输出约定
+
+所有子实验的显著性检验结果统一写入 `significance_tests.json`，按子实验分层组织：
+
+```json
+{
+  "a1a": { "word_vs_noise": { "top_1": { "p": ..., "effect": ..., "ci": [..., ...] }, ... }, ... },
+  "a1d": { ... },
+  "a2_cosine": { "same_sent_cross_subj_vs_diff_sent": { ... }, ... },
+  "a2_eta": { "subj_vs_sent_wilcoxon": { ... }, "eta_permutation": { ... } },
+  "a2_band": { "friedman": { ... }, "nemenyi": { ... } },
+  "a3_lp": { "delta_top_k": { ... } },
+  "a3_retrieval": { "eeg_vs_noise": { ... }, "vs_random": { ... } },
+  "a3_session_retrieval": { ... }
+}
+```
+
+---
+
 ## 输出文件
 
 | 文件 | 内容 |
@@ -574,5 +735,13 @@ query = Session 1 聚合，candidate = Session 2 聚合，避免自检索。
 | `subject_effect_analysis.json` | A2-Cosine 五组余弦相似度统计（含"同被试异句同 session"/"同被试异句跨 session"，EEG + Noise）；A2-Eta 三因素 η²（sentence / subject / session），含 `r_subj_vs_sent`、`r_session_vs_sent` 判定与 task1-SR 内部对照 |
 | `band_level_eta_squared.json` | A2-band 每个频带的 η² 结果，含 sentence / subject / session 三因素频带级分解（EEG）|
 | `tsne_by_*.png` | A2-tSNE 可视化图像，命名为 `tsne_by_{subject\|sentence\|task\|session}_p{5\|30\|50}.png`，其中 `session` 着色固定 perplexity=30 |
+| `tsne_global/*.png` | 公共步骤 5 生成的三组特征（word/sent/noise）全局降维图 |
+| `tsne_a1a_*.png` | A1a 三组特征按 subject/sentence/task/session 染色的 t-SNE |
+| `tsne_a1d_*.png` | A1d 每位同 session 被试及 task1-SR 子集按 session 染色的 t-SNE |
+| `tsne_band_*.png` | A2-band 频带级 t-SNE，分 sentence / subject 染色 |
+| `tsne_a3_before/after_*.png` | A3-LP 去被试化前后对比 t-SNE（subject / sentence 两种染色）|
+| `tsne_a3_retrieval_pairs*.png` | A3-Retrieval 分组聚合向量带同句连线的 t-SNE |
+| `tsne_a3_session_pairs*.png` | A3-SessionRetrieval 跨 session 聚合向量带同句连线的 t-SNE |
+| `significance_tests.json` | 所有子实验的显著性检验结果（p 值 / 效应量 / 置信区间 / 校正后 $\alpha$）|
 | `validate_eeg_signal.log` | 运行日志 |
 

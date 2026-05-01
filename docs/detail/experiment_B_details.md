@@ -345,6 +345,107 @@ $$\text{R@K} = \frac{1}{N}\sum_{i=1}^{N} \mathbf{1}[r_i \leq K], \quad K \in \{1
 
 $$\text{MRR} = \frac{1}{N}\sum_{i=1}^{N} \frac{1}{r_i}, \quad \text{Mean Rank} = \frac{1}{N}\sum_{i=1}^{N} r_i$$
 
+### 步骤 6：嵌入落盘（供降维可视化）
+
+编码完成后将两类向量并同元数据落盘至输出目录的 `embeddings.npz`：
+
+```python
+np.savez(
+    output_dir / "embeddings.npz",
+    v_eeg=V_eeg.cpu().numpy(),      # (N, 1024)
+    v_text=V_text.cpu().numpy(),    # (M, 1024)
+    gt_idx=np.array(gt_idx),        # (N,)
+    subjects=np.array(subjects),    # (N,)
+    tasks=np.array(tasks),          # (N,)
+    datasets=np.array(datasets),    # (N,)
+    noise_type=noise_type,          # str: real/gaussian/shuffle/zero
+)
+```
+
+该文件为下文降维可视化分析的唯一输入来源。
+
+---
+
+## 降维可视化
+
+**目的**：将检索指标的数字结果（R@K / MRR）转为可见的空间结构，视觉化编码器学习质量与跨模态对齐情况。
+
+**通用流程**：输入 $\mathbf{V} \in \mathbb{R}^{K \times 1024}$，统一执行 PCA(50) → t-SNE(2)，perplexity=30，`random_state=42`，输出二维坐标 $Z \in \mathbb{R}^{K \times 2}$。以下六种可视化均基于步骤 6 落盘的 `embeddings.npz`，无需重新编码。
+
+### V1：单模型四条件 EEG 嵌入对比图
+
+**数据**：同一模型的 $\mathbf{V}^\text{EEG}_\text{real}, \mathbf{V}^\text{EEG}_\text{gaussian}, \mathbf{V}^\text{EEG}_\text{shuffle}, \mathbf{V}^\text{EEG}_\text{zero}$拼接为 $4N \times 1024$，按条件染色。
+
+**观察目标**（与结果解读表中六种典型诊断对应）：
+
+| 降维图形态 | 对应模式 |
+|------------|---------|
+| 四色完全重叠为单一簇 | 模式 A：编码器完全无效 |
+| real 略偏离 gaussian/shuffle/zero | 模式 B：学到 EEG 统计特性 |
+| real 与 shuffle 重叠、与 gaussian/zero 分离 | 模式 C：学到跨模态对应 |
+| zero 向量偏离 real 但靠近文本簇 | 特殊异常（b4 GLIM）：解码器偏差 |
+
+输出：`tsne_{model}_4cond_by_noise_p30.png`，每模型一张。
+
+### V2：EEG 与文本的跨模态联合降维图
+
+**数据**：将 $\mathbf{V}^\text{EEG}_\text{real}$（$N \times 1024$）与 $\mathbf{V}^\text{text}$（$M \times 1024$）拼接为 $(N+M) \times 1024$。
+
+**标记**：模态用不同形状（EEG 圆点 / 文本三角），颜色按 $\text{gt\_idx}$（sentence_id）上色。
+
+**观察目标**：
+
+| 模型 | 预期 | 含义 |
+|------|------|------|
+| **GLIM**（CLIP 训练）| 同句 EEG 和文本点靠近 | 跨模态对齐生效 |
+| CET-MAE / EEG-To-Text / EEG2Text | 两模态形成两个分离簇 | 未专门优化对齐 |
+
+**转衍用法**：对同一 sentence_id 的 EEG 点与文本点绘制连接线，线段越短 → 对齐越好。输出：`tsne_{model}_cross_modal_p30.png`。
+
+### V3：跨模型同条件对比图
+
+**数据**：固定 `real` 条件，将四模型的 $\mathbf{V}^\text{EEG}_\text{real}$ 各取一份拼接为 $4N \times 1024$，按**模型**染色。
+
+**观察目标**：判断在相同 EEG 输入下四个编码器产出的分布差异，与 R@1 数据配合评价哪个编码器的嵌入最可分。输出：`tsne_cross_model_real_p30.png`。
+
+### V4：分组维度染色图
+
+**数据**：任一模型的 $\mathbf{V}^\text{EEG}_\text{real}$。
+
+**染色方案**（对应 `by_subject` / `by_task` / `by_dataset` 分组指标）：
+
+| 染色维度 | 验证目标 |
+|---------|---------|
+| `subject_id` | 编码后是否仍存在被试簇（与 A2-Eta subject_dominant 互证）|
+| `task` | task1-SR / task2-NR / task3-TSR 是否形成簇 |
+| `dataset` | ZuCo1 / ZuCo2 跨数据集漂移 |
+| `sentence_id` | 同句 EEG 嵌入是否聚拢 |
+
+输出：`tsne_{model}_real_by_{subject|task|dataset|sentence}_p30.png`。
+
+### V5：Shuffle 专项诊断图
+
+**数据**：同模型的 $\mathbf{V}^\text{EEG}_\text{real}$ 与 $\mathbf{V}^\text{EEG}_\text{shuffle}$（同一条 EEG 样本在两种条件下的向量）。
+
+**预期**：real 与 shuffle 的同一样本应完全重合（EEG 内容不变）；若按**文本标签**染色，real 下同句聚簇、shuffle 下同句随机分散 → 直接验证跨模态对应是否存在。输出：`tsne_{model}_shuffle_diag_p30.png`。
+
+### V6：Zero 响应图（异常诊断）
+
+**数据**：$\mathbf{V}^\text{EEG}_\text{zero}$ 单独降维。
+
+**观察**：
+
+| 现象 | 含义 |
+|------|------|
+| 所有点聩缩为单一点 | 全零输入→密集输出，符合预期 |
+| 点弥散且靠近某些文本簇 | 存在 BN/Dropout 影响或解码器偏差 |
+
+特别适用于 **GLIM**（zero 指标反而高于 real）的根因定位。输出：`tsne_{model}_zero_response_p30.png`。
+
+### 降维可视化执行脚本
+
+在 `benchmark_eval/scripts/visualize_b_embeddings.py` 中统一实现 V1-V6，输入为 `--model {cet_mae|eeg_to_text|eeg2text|glim}` 与 `--viz {v1|v2|v3|v4|v5|v6|all}`，读取对应 `eval_*_retrieval*/embeddings.npz`，输出至 `benchmark_eval/test_outputs/tsne_b/`。
+
 ---
 
 ## 结果解读框架
@@ -375,13 +476,119 @@ real > shuffle  real ≈ shuffle  zero 异常    zero ≈ 随机
 | E | real ≈ gaussian ≈ zero | — | — | 模型存在 **shortcut/bias**，不依赖输入内容 |
 | F | real > gaussian, real > shuffle，但绝对值仍低 | — | — | 模型有效但 **EEG SNR 太低**，语义信息本身稀疏 |
 
-### 显著性判定经验阈值
+### 启发式差异阈值（仅作初筛）
+
+以下阈值用于快速初筛对比，**不作为最终结论依据**，所有诊断必须配套下文《显著性检验》中的 permutation test 与 bootstrap CI 来确认。
 
 | 指标 | 判定为显著差异的阈值 |
 |------|---------------------|
 | Mean Rank 差值 | $> 3.0$ |
 | R@10 差值 | $> 2$ 个百分点 |
 | MRR 差值 | $> 0.005$ |
+
+---
+
+## 显著性检验
+
+所有对比结论（模式 A/B/C/D/E/F、zero 异常、跨模型排名、分组异质性）均需配套定量显著性检验，接受阈值 $\alpha = 0.05$（多重比较校正后使用 $\alpha_\text{adj}$），所有结果落盘至 `significance_tests.json`。
+
+### 检验单位：per-query rank
+
+每一条 EEG query 产出一个排名 $r_i$，N=1858 个配对样本为一级检验单位，允许在 real/gaussian/shuffle/zero 四条件间做样本级配对对比（同一 EEG 样本在四条件下各有一个 $r_i$）。
+
+### 检验方法统一约定
+
+| 场景 | 首选方法 | 效应量 | 置信区间 |
+|------|---------|--------|---------|
+| 条件间 R@K 对比（每模型）| **Permutation test**（1000 次打乱 gt_idx）| 与 null 分布的标准差偏离 | 经验分位数 95% CI |
+| 条件间 per-query rank 对比 | **Wilcoxon 符号秩检验**（按样本配对）| Cohen's $d_z$ | bootstrap 95% CI |
+| R@K vs 随机基线 $K/M$ | **二项检验**（精确 binomial，$n=N$，$p_0=K/M$）| 查准率提升 | Clopper-Pearson CI |
+| Mean Rank / MRR 对比 | **Bootstrap resampling**（按 query 有放回重采样 1000 次）| 均值差 + 效应量 | 95% CI + p 值由 CI 推导 |
+| Rank 分布 real vs 随机均匀 | **Kolmogorov-Smirnov 检验** | KS 统计量 | — |
+| 多模型同指标对比（4 模型）| **Friedman 检验 + 事后 Nemenyi** | Kendall's $W$ | — |
+| 分组指标异质性（subject / task / dataset）| **Kruskal-Wallis** | $\eta^2_H$ | — |
+
+### 多重比较校正
+
+总检验数量 = **4 模型 × 6 条件对（real-vs-gaussian, real-vs-shuffle, real-vs-zero, gaussian-vs-shuffle, gaussian-vs-zero, shuffle-vs-zero）× 3 指标 = 72 组**，**必须校正**：
+
+| 检验类别 | 范围 | 校正方法 |
+|---------|------|---------|
+| 单模型条件对检验（6 对 × 3 指标）| 18 组 | **Holm-Bonferroni** |
+| 跨 4 模型汇总（72 组）| 全局 | **Benjamini-Hochberg FDR** |
+| Friedman 事后多重比较（4 模型 × 2 两两对比）| 6 组 | **Nemenyi**（已隐含校正）|
+| 分组事后对比（多被试两两）| $\binom{P}{2}$ | **Dunn 检验 + BH-FDR** |
+
+### 核心诊断的检验要求
+
+以下结论必须有显著性依据，否则在报告中标注为“当前样本量下不显著”：
+
+| 结论 | 必需的显著性证据 |
+|------|-----------------|
+| “模式 A：编码器完全无效” | real-vs-gaussian + real-vs-shuffle + real-vs-zero 的 permutation test 均 $p > \alpha_\text{adj}$ |
+| “模式 B：学到统计特性未学到对应” | real-vs-gaussian $p < \alpha_\text{adj}$ 且 real-vs-shuffle $p > \alpha_\text{adj}$ |
+| “模式 C：学到跨模态对应” | real-vs-gaussian 与 real-vs-shuffle 均 $p < \alpha_\text{adj}$，且 Cohen's $d_z > 0.2$ |
+| “b4 GLIM zero > real 异常” | zero-vs-real 在 R@10 / MRR 上均 $p < \alpha_\text{adj}$ 且效应方向为 zero > real |
+| “模型 X 显著优于模型 Y” | Friedman 整体 $p < 0.05$，事后 Nemenyi 下 X vs Y $p < \alpha_\text{adj}$ |
+| “被试/任务之间存在异质性” | Kruskal-Wallis $p < 0.05$，且 Dunn 事后证实具体子组对差异 |
+
+### b4 GLIM 异常检验清单
+
+针对“zero R@10 = 13.02% > real R@10 = 8.83%”的异常观察，必须执行：
+
+1. **Permutation test**：按照 real 与 zero 关于同一批 EEG query 的样本配对 rank 差，检验均值差的统计显著性。
+2. **Bootstrap 95% CI**：对 MRR、R@10 差值构建置信区间，确认区间不包含 0。
+3. **分组 robustness**：在 `by_task` / `by_subject` 分组上重复上述检验，判断异常是否为全局现象。
+4. **Kruskal-Wallis**：判断异常是否由某少数被试导致。
+
+### 输出约定
+
+每组实验的输出目录额外生成 `significance_tests.json`：
+
+```json
+{
+  "model": "cet_mae",
+  "alpha": 0.05,
+  "alpha_adjusted": 0.0028,
+  "correction_method": "holm_bonferroni",
+  "pairwise": {
+    "real_vs_gaussian": {
+      "r@1":  { "delta": ..., "p_perm": ..., "p_bootstrap_ci": [..., ...], "cohens_dz": ..., "significant": true },
+      "r@5":  { ... },
+      "r@10": { ... },
+      "mrr":  { ... },
+      "mean_rank": { ... }
+    },
+    "real_vs_shuffle": { ... },
+    "real_vs_zero":    { ... },
+    ...
+  },
+  "vs_random_baseline": {
+    "r@1":  { "baseline": 0.0077, "observed": ..., "p_binomial": ..., "ci_95": [..., ...] },
+    ...
+  },
+  "rank_distribution": {
+    "ks_vs_uniform": { "statistic": ..., "p": ... }
+  },
+  "grouped": {
+    "by_subject": { "kruskal_wallis": { ... }, "dunn_posthoc": { ... } },
+    "by_task":    { ... }
+  }
+}
+```
+
+跨模型汇总专用文件 `benchmark_eval/test_outputs/significance_summary.json`：
+
+```json
+{
+  "friedman": {
+    "r@10_real": { "statistic": ..., "p": ..., "kendalls_w": ... }
+  },
+  "nemenyi_posthoc": {
+    "r@10_real": { "cet_mae_vs_glim": ..., ... }
+  }
+}
+```
 
 ---
 
@@ -469,6 +676,8 @@ benchmark_eval/test_outputs/
 └── eval_glim_retrieval_zero/
 ```
 
+每个 `eval_*_retrieval*/` 目录均额外包含 `embeddings.npz`（供降维可视化）与 `significance_tests.json`（供显著性检验），另外 `benchmark_eval/test_outputs/significance_summary.json` 统一汇总 4 模型的 Friedman / Nemenyi 结果。
+
 ### `retrieval_metrics.json` 字段说明
 
 ```json
@@ -493,3 +702,29 @@ benchmark_eval/test_outputs/
 ```
 
 > EEG2Text 额外输出 `"missing_raw_count"` 字段，记录 spectro pickle 中未找到对应 rawData 的样本数。
+
+### `embeddings.npz` 字段说明
+
+| 字段 | shape | 含义 |
+|------|-------|------|
+| `v_eeg` | $(N, 1024)$ | L2 归一化后的 EEG 嵌入 |
+| `v_text` | $(M, 1024)$ | L2 归一化后的候选文本嵌入 |
+| `gt_idx` | $(N,)$ | 每条 EEG 对应的文本池下标 |
+| `subjects` | $(N,)$ | 被试 ID |
+| `tasks` | $(N,)$ | 任务名 |
+| `datasets` | $(N,)$ | 数据集名 |
+| `noise_type` | 标量 | `real` / `gaussian` / `shuffle` / `zero` |
+
+该文件供降维可视化章节的 V1–V6 调用，无需重新执行编码。
+
+### 降维可视化输出文件
+
+```
+benchmark_eval/test_outputs/tsne_b/
+├── tsne_{model}_4cond_by_noise_p30.png          # V1：四条件对比，4 模型各一张
+├── tsne_{model}_cross_modal_p30.png             # V2：EEG+文本联合降维，4 模型各一张
+├── tsne_cross_model_real_p30.png                # V3：real 条件下四模型同图对比
+├── tsne_{model}_real_by_{subject|task|dataset|sentence}_p30.png  # V4：分组染色
+├── tsne_{model}_shuffle_diag_p30.png            # V5：shuffle 专项诊断
+└── tsne_{model}_zero_response_p30.png           # V6：zero 响应异常诊断
+```
