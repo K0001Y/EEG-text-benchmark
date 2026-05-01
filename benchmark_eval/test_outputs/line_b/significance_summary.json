@@ -1,0 +1,965 @@
+{
+  "models": [
+    "cet_mae",
+    "eeg_to_text",
+    "eeg2text",
+    "glim"
+  ],
+  "friedman_by_noise": {
+    "real": {
+      "test": "friedman",
+      "statistic": 8.553072625698357,
+      "p": 0.03586282724794313,
+      "n_blocks": 54,
+      "n_groups": 4,
+      "kendalls_w": 0.05279674460307628,
+      "groups": [
+        "cet_mae",
+        "eeg_to_text",
+        "eeg2text",
+        "glim"
+      ],
+      "nemenyi_cd": {
+        "cd_alpha_0.05": 0.63827318157744,
+        "pairs": {
+          "cet_mae_vs_eeg_to_text": {
+            "avg_rank_diff": 0.04629629629629628,
+            "critical_difference": 0.63827318157744,
+            "significant": false
+          },
+          "cet_mae_vs_eeg2text": {
+            "avg_rank_diff": 0.5185185185185186,
+            "critical_difference": 0.63827318157744,
+            "significant": false
+          },
+          "cet_mae_vs_glim": {
+            "avg_rank_diff": 0.4537037037037037,
+            "critical_difference": 0.63827318157744,
+            "significant": false
+          },
+          "eeg_to_text_vs_eeg2text": {
+            "avg_rank_diff": 0.5648148148148149,
+            "critical_difference": 0.63827318157744,
+            "significant": false
+          },
+          "eeg_to_text_vs_glim": {
+            "avg_rank_diff": 0.5,
+            "critical_difference": 0.63827318157744,
+            "significant": false
+          },
+          "eeg2text_vs_glim": {
+            "avg_rank_diff": 0.06481481481481488,
+            "critical_difference": 0.63827318157744,
+            "significant": false
+          }
+        },
+        "avg_ranks": {
+          "cet_mae": 2.7314814814814814,
+          "eeg_to_text": 2.7777777777777777,
+          "eeg2text": 2.212962962962963,
+          "glim": 2.2777777777777777
+        }
+      },
+      "noise": "real",
+      "n_common_queries": 54
+    },
+    "gaussian": {
+      "test": "friedman",
+      "statistic": 45.434944237918195,
+      "p": 7.478656793401388e-10,
+      "n_blocks": 54,
+      "n_groups": 4,
+      "kendalls_w": 0.28046261875258144,
+      "groups": [
+        "cet_mae",
+        "eeg_to_text",
+        "eeg2text",
+        "glim"
+      ],
+      "nemenyi_cd": {
+        "cd_alpha_0.05": 0.63827318157744,
+        "pairs": {
+          "cet_mae_vs_eeg_to_text": {
+            "avg_rank_diff": 0.07407407407407396,
+            "critical_difference": 0.63827318157744,
+            "significant": false
+          },
+          "cet_mae_vs_eeg2text": {
+            "avg_rank_diff": 0.9444444444444444,
+            "critical_difference": 0.63827318157744,
+            "significant": true
+          },
+          "cet_mae_vs_glim": {
+            "avg_rank_diff": 0.7222222222222223,
+            "critical_difference": 0.63827318157744,
+            "significant": true
+          },
+          "eeg_to_text_vs_eeg2text": {
+            "avg_rank_diff": 0.8703703703703705,
+            "critical_difference": 0.63827318157744,
+            "significant": true
+          },
+          "eeg_to_text_vs_glim": {
+            "avg_rank_diff": 0.7962962962962963,
+            "critical_difference": 0.63827318157744,
+            "significant": true
+          },
+          "eeg2text_vs_glim": {
+            "avg_rank_diff": 1.6666666666666667,
+            "critical_difference": 0.63827318157744,
+            "significant": true
+          }
+        },
+        "avg_ranks": {
+          "cet_mae": 2.574074074074074,
+          "eeg_to_text": 2.5,
+          "eeg2text": 1.6296296296296295,
+          "glim": 3.2962962962962963
+        }
+      },
+      "noise": "gaussian",
+      "n_common_queries": 54
+    },
+    "shuffle": {
+      "test": "friedman",
+      "statistic": 18.09514925373134,
+      "p": 0.0004204148503768438,
+      "n_blocks": 54,
+      "n_groups": 4,
+      "kendalls_w": 0.11169845218352678,
+      "groups": [
+        "cet_mae",
+        "eeg_to_text",
+        "eeg2text",
+        "glim"
+      ],
+      "nemenyi_cd": {
+        "cd_alpha_0.05": 0.63827318157744,
+        "pairs": {
+          "cet_mae_vs_eeg_to_text": {
+            "avg_rank_diff": 0.009259259259259078,
+            "critical_difference": 0.63827318157744,
+            "significant": false
+          },
+          "cet_mae_vs_eeg2text": {
+            "avg_rank_diff": 0.8796296296296295,
+            "critical_difference": 0.63827318157744,
+            "significant": true
+          },
+          "cet_mae_vs_glim": {
+            "avg_rank_diff": 0.5,
+            "critical_difference": 0.63827318157744,
+            "significant": false
+          },
+          "eeg_to_text_vs_eeg2text": {
+            "avg_rank_diff": 0.8888888888888886,
+            "critical_difference": 0.63827318157744,
+            "significant": true
+          },
+          "eeg_to_text_vs_glim": {
+            "avg_rank_diff": 0.5092592592592591,
+            "critical_difference": 0.63827318157744,
+            "significant": false
+          },
+          "eeg2text_vs_glim": {
+            "avg_rank_diff": 0.37962962962962954,
+            "critical_difference": 0.63827318157744,
+            "significant": false
+          }
+        },
+        "avg_ranks": {
+          "cet_mae": 2.8425925925925926,
+          "eeg_to_text": 2.8518518518518516,
+          "eeg2text": 1.962962962962963,
+          "glim": 2.3425925925925926
+        }
+      },
+      "noise": "shuffle",
+      "n_common_queries": 54
+    },
+    "zero": {
+      "test": "friedman",
+      "statistic": 55.177777777777806,
+      "p": 6.2919778482404265e-12,
+      "n_blocks": 54,
+      "n_groups": 4,
+      "kendalls_w": 0.34060356652949264,
+      "groups": [
+        "cet_mae",
+        "eeg_to_text",
+        "eeg2text",
+        "glim"
+      ],
+      "nemenyi_cd": {
+        "cd_alpha_0.05": 0.63827318157744,
+        "pairs": {
+          "cet_mae_vs_eeg_to_text": {
+            "avg_rank_diff": 0.5925925925925926,
+            "critical_difference": 0.63827318157744,
+            "significant": false
+          },
+          "cet_mae_vs_eeg2text": {
+            "avg_rank_diff": 1.2777777777777775,
+            "critical_difference": 0.63827318157744,
+            "significant": true
+          },
+          "cet_mae_vs_glim": {
+            "avg_rank_diff": 0.46296296296296324,
+            "critical_difference": 0.63827318157744,
+            "significant": false
+          },
+          "eeg_to_text_vs_eeg2text": {
+            "avg_rank_diff": 0.6851851851851849,
+            "critical_difference": 0.63827318157744,
+            "significant": true
+          },
+          "eeg_to_text_vs_glim": {
+            "avg_rank_diff": 1.0555555555555558,
+            "critical_difference": 0.63827318157744,
+            "significant": true
+          },
+          "eeg2text_vs_glim": {
+            "avg_rank_diff": 1.7407407407407407,
+            "critical_difference": 0.63827318157744,
+            "significant": true
+          }
+        },
+        "avg_ranks": {
+          "cet_mae": 2.8518518518518516,
+          "eeg_to_text": 2.259259259259259,
+          "eeg2text": 1.5740740740740742,
+          "glim": 3.314814814814815
+        }
+      },
+      "noise": "zero",
+      "n_common_queries": 54
+    }
+  },
+  "bh_fdr_global": {
+    "method": "bh_fdr",
+    "alpha": 0.05,
+    "n_tests": 120,
+    "per_test": [
+      {
+        "key": "cet_mae/real_vs_gaussian/r@1",
+        "p": 0.72,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/real_vs_gaussian/r@5",
+        "p": 0.01200000000000001,
+        "p_adj": 0.07200000000000006,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/real_vs_gaussian/r@10",
+        "p": 0.01200000000000001,
+        "p_adj": 0.07200000000000006,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/real_vs_gaussian/mrr",
+        "p": 0.0040000000000000036,
+        "p_adj": 0.036923076923076954,
+        "significant": true
+      },
+      {
+        "key": "cet_mae/real_vs_gaussian/mean_rank",
+        "p": 0.28600000000000003,
+        "p_adj": 0.7460869565217393,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/real_vs_shuffle/r@1",
+        "p": 0.72,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/real_vs_shuffle/r@5",
+        "p": 0.12200000000000011,
+        "p_adj": 0.395675675675676,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/real_vs_shuffle/r@10",
+        "p": 0.3380000000000001,
+        "p_adj": 0.8450000000000002,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/real_vs_shuffle/mrr",
+        "p": 0.19199999999999995,
+        "p_adj": 0.5759999999999998,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/real_vs_shuffle/mean_rank",
+        "p": 0.5700000000000001,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/real_vs_zero/r@1",
+        "p": 0.72,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/real_vs_zero/r@5",
+        "p": 0.01200000000000001,
+        "p_adj": 0.07200000000000006,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/real_vs_zero/r@10",
+        "p": 0.01200000000000001,
+        "p_adj": 0.07200000000000006,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/real_vs_zero/mrr",
+        "p": 0.001,
+        "p_adj": 0.010909090909090908,
+        "significant": true
+      },
+      {
+        "key": "cet_mae/real_vs_zero/mean_rank",
+        "p": 0.001,
+        "p_adj": 0.010909090909090908,
+        "significant": true
+      },
+      {
+        "key": "cet_mae/gaussian_vs_shuffle/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/gaussian_vs_shuffle/r@5",
+        "p": 0.73,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/gaussian_vs_shuffle/r@10",
+        "p": 0.262,
+        "p_adj": 0.704,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/gaussian_vs_shuffle/mrr",
+        "p": 0.05800000000000005,
+        "p_adj": 0.2485714285714288,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/gaussian_vs_shuffle/mean_rank",
+        "p": 0.6060000000000001,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/gaussian_vs_zero/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/gaussian_vs_zero/r@5",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/gaussian_vs_zero/r@10",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/gaussian_vs_zero/mrr",
+        "p": 0.20399999999999996,
+        "p_adj": 0.5970731707317073,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/gaussian_vs_zero/mean_rank",
+        "p": 0.09400000000000008,
+        "p_adj": 0.33176470588235324,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/shuffle_vs_zero/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/shuffle_vs_zero/r@5",
+        "p": 0.73,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/shuffle_vs_zero/r@10",
+        "p": 0.262,
+        "p_adj": 0.704,
+        "significant": false
+      },
+      {
+        "key": "cet_mae/shuffle_vs_zero/mrr",
+        "p": 0.0020000000000000018,
+        "p_adj": 0.020000000000000018,
+        "significant": true
+      },
+      {
+        "key": "cet_mae/shuffle_vs_zero/mean_rank",
+        "p": 0.04200000000000004,
+        "p_adj": 0.19384615384615403,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_gaussian/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_gaussian/r@5",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_gaussian/r@10",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_gaussian/mrr",
+        "p": 0.8160000000000001,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_gaussian/mean_rank",
+        "p": 0.3560000000000001,
+        "p_adj": 0.8592000000000002,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_shuffle/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_shuffle/r@5",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_shuffle/r@10",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_shuffle/mrr",
+        "p": 0.030000000000000027,
+        "p_adj": 0.14400000000000013,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_shuffle/mean_rank",
+        "p": 0.09000000000000008,
+        "p_adj": 0.33176470588235324,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_zero/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_zero/r@5",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_zero/r@10",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_zero/mrr",
+        "p": 0.09400000000000008,
+        "p_adj": 0.33176470588235324,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/real_vs_zero/mean_rank",
+        "p": 0.07200000000000006,
+        "p_adj": 0.28800000000000026,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/gaussian_vs_shuffle/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/gaussian_vs_shuffle/r@5",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/gaussian_vs_shuffle/r@10",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/gaussian_vs_shuffle/mrr",
+        "p": 0.04600000000000004,
+        "p_adj": 0.20444444444444462,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/gaussian_vs_shuffle/mean_rank",
+        "p": 0.6359999999999999,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/gaussian_vs_zero/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/gaussian_vs_zero/r@5",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/gaussian_vs_zero/r@10",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/gaussian_vs_zero/mrr",
+        "p": 0.558,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/gaussian_vs_zero/mean_rank",
+        "p": 0.5,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/shuffle_vs_zero/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/shuffle_vs_zero/r@5",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/shuffle_vs_zero/r@10",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg_to_text/shuffle_vs_zero/mrr",
+        "p": 0.001,
+        "p_adj": 0.010909090909090908,
+        "significant": true
+      },
+      {
+        "key": "eeg_to_text/shuffle_vs_zero/mean_rank",
+        "p": 1.096,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_gaussian/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_gaussian/r@5",
+        "p": 0.768,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_gaussian/r@10",
+        "p": 0.016000000000000014,
+        "p_adj": 0.09142857142857151,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_gaussian/mrr",
+        "p": 0.1459999999999999,
+        "p_adj": 0.4610526315789471,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_gaussian/mean_rank",
+        "p": 0.3799999999999999,
+        "p_adj": 0.8941176470588232,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_shuffle/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_shuffle/r@5",
+        "p": 0.06800000000000006,
+        "p_adj": 0.2813793103448278,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_shuffle/r@10",
+        "p": 0.1160000000000001,
+        "p_adj": 0.386666666666667,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_shuffle/mrr",
+        "p": 0.02400000000000002,
+        "p_adj": 0.12521739130434795,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_shuffle/mean_rank",
+        "p": 0.9319999999999999,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_zero/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_zero/r@5",
+        "p": 0.774,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_zero/r@10",
+        "p": 0.010000000000000009,
+        "p_adj": 0.07200000000000006,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_zero/mrr",
+        "p": 0.018000000000000016,
+        "p_adj": 0.09818181818181827,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/real_vs_zero/mean_rank",
+        "p": 0.030000000000000027,
+        "p_adj": 0.14400000000000013,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/gaussian_vs_shuffle/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/gaussian_vs_shuffle/r@5",
+        "p": 0.18999999999999995,
+        "p_adj": 0.5759999999999998,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/gaussian_vs_shuffle/r@10",
+        "p": 0.478,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/gaussian_vs_shuffle/mrr",
+        "p": 0.526,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/gaussian_vs_shuffle/mean_rank",
+        "p": 0.4039999999999999,
+        "p_adj": 0.9323076923076921,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/gaussian_vs_zero/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/gaussian_vs_zero/r@5",
+        "p": 0.254,
+        "p_adj": 0.704,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/gaussian_vs_zero/r@10",
+        "p": 0.734,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/gaussian_vs_zero/mrr",
+        "p": 0.536,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/gaussian_vs_zero/mean_rank",
+        "p": 0.006000000000000005,
+        "p_adj": 0.04800000000000004,
+        "significant": true
+      },
+      {
+        "key": "eeg2text/shuffle_vs_zero/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/shuffle_vs_zero/r@5",
+        "p": 0.006000000000000005,
+        "p_adj": 0.04800000000000004,
+        "significant": true
+      },
+      {
+        "key": "eeg2text/shuffle_vs_zero/r@10",
+        "p": 0.788,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/shuffle_vs_zero/mrr",
+        "p": 0.8740000000000001,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "eeg2text/shuffle_vs_zero/mean_rank",
+        "p": 0.09000000000000008,
+        "p_adj": 0.33176470588235324,
+        "significant": false
+      },
+      {
+        "key": "glim/real_vs_gaussian/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/real_vs_gaussian/r@5",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/real_vs_gaussian/r@10",
+        "p": 0.8720000000000001,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/real_vs_gaussian/mrr",
+        "p": 0.001,
+        "p_adj": 0.010909090909090908,
+        "significant": true
+      },
+      {
+        "key": "glim/real_vs_gaussian/mean_rank",
+        "p": 0.001,
+        "p_adj": 0.010909090909090908,
+        "significant": true
+      },
+      {
+        "key": "glim/real_vs_shuffle/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/real_vs_shuffle/r@5",
+        "p": 0.724,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/real_vs_shuffle/r@10",
+        "p": 1.242,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/real_vs_shuffle/mrr",
+        "p": 0.986,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/real_vs_shuffle/mean_rank",
+        "p": 0.3580000000000001,
+        "p_adj": 0.8592000000000002,
+        "significant": false
+      },
+      {
+        "key": "glim/real_vs_zero/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/real_vs_zero/r@5",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/real_vs_zero/r@10",
+        "p": 0.31600000000000006,
+        "p_adj": 0.8068085106382981,
+        "significant": false
+      },
+      {
+        "key": "glim/real_vs_zero/mrr",
+        "p": 0.001,
+        "p_adj": 0.010909090909090908,
+        "significant": true
+      },
+      {
+        "key": "glim/real_vs_zero/mean_rank",
+        "p": 0.001,
+        "p_adj": 0.010909090909090908,
+        "significant": true
+      },
+      {
+        "key": "glim/gaussian_vs_shuffle/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/gaussian_vs_shuffle/r@5",
+        "p": 0.724,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/gaussian_vs_shuffle/r@10",
+        "p": 0.806,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/gaussian_vs_shuffle/mrr",
+        "p": 0.001,
+        "p_adj": 0.010909090909090908,
+        "significant": true
+      },
+      {
+        "key": "glim/gaussian_vs_shuffle/mean_rank",
+        "p": 0.001,
+        "p_adj": 0.010909090909090908,
+        "significant": true
+      },
+      {
+        "key": "glim/gaussian_vs_zero/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/gaussian_vs_zero/r@5",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/gaussian_vs_zero/r@10",
+        "p": 0.696,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/gaussian_vs_zero/mrr",
+        "p": 0.706,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/gaussian_vs_zero/mean_rank",
+        "p": 0.1100000000000001,
+        "p_adj": 0.3771428571428575,
+        "significant": false
+      },
+      {
+        "key": "glim/shuffle_vs_zero/r@1",
+        "p": 2.0,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/shuffle_vs_zero/r@5",
+        "p": 0.724,
+        "p_adj": 1.0,
+        "significant": false
+      },
+      {
+        "key": "glim/shuffle_vs_zero/r@10",
+        "p": 0.264,
+        "p_adj": 0.704,
+        "significant": false
+      },
+      {
+        "key": "glim/shuffle_vs_zero/mrr",
+        "p": 0.001,
+        "p_adj": 0.010909090909090908,
+        "significant": true
+      },
+      {
+        "key": "glim/shuffle_vs_zero/mean_rank",
+        "p": 0.001,
+        "p_adj": 0.010909090909090908,
+        "significant": true
+      }
+    ]
+  }
+}

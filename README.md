@@ -19,46 +19,114 @@
 
 ```
 benchmark/
-├── benchmark_eval/           # 核心评估框架
-│   ├── constants.py                  # 全局命名常量（MAX_LEN、EEG_WORD_DIM 等）
-│   ├── data_processing/      # 数据处理模块
-│   │   ├── build_unified_dataset.py  # 从 ZuCo MAT 构建统一数据集
-│   │   └── dataset.py                # 数据集加载与批处理
-│   ├── evaluation/           # 评估模块
-│   │   ├── model_wrappers.py         # 模型 wrapper 基类
-│   │   ├── eval_runner.py            # 评估流程管理（含随机种子、统一输出 schema）
-│   │   └── metrics.py                # 指标计算（BLEU、ROUGE、WER、BERTScore）
-│   ├── wrappers/             # 模型适配器
-│   │   ├── eeg_to_text_wrapper.py    # EEG-To-Text wrapper
-│   │   ├── eeg2text_wrapper.py       # EEG2Text wrapper（spectrogram 输入）
-│   │   ├── cet_mae_wrapper.py        # CET-MAE wrapper
-│   │   └── glim_wrapper.py           # GLIM wrapper
-│   ├── config/               # 配置文件
-│   │   └── eval_config.yaml          # 评估配置（max_len、生成参数、seed 等）
-│   ├── utils/                # 通用工具
-│   │   └── logging_utils.py          # 日志工具
-│   ├── scripts/              # 脚本文件
-│   │   └── run_eval_dummy.sh         # 示例评估脚本
-│   └── __init__.py           # 主模块导出
+├── benchmark_eval/               # 核心评估框架
+│   ├── __init__.py                       # 主模块导出
+│   ├── constants.py                      # 全局常量（MAX_LEN, EEG_CHANNELS 等）
+│   ├── pyproject.toml                    # 项目依赖与构建配置
+│   ├── config/
+│   │   └── eval_config.yaml              # 评估配置（max_len、生成参数、seed 等）
+│   ├── data_processing/                  # 数据处理模块
+│   │   ├── build_unified_dataset.py      # 从 ZuCo MAT 构建统一数据集
+│   │   ├── dataset.py                    # UnifiedDataset 数据加载
+│   │   └── validate_dataset.py           # 数据集验证
+│   ├── evaluation/                       # 评估模块
+│   │   ├── model_wrappers.py             # BenchmarkModelWrapper 基类与工厂函数
+│   │   ├── eval_runner.py                # 评估流程管理器
+│   │   ├── metrics.py                    # BLEU/ROUGE/WER/BERTScore 指标计算
+│   │   ├── embedding_io.py               # 嵌入向量 I/O
+│   │   ├── significance.py               # 统计显著性检验
+│   │   └── visualization.py              # 结果可视化
+│   ├── wrappers/                         # 模型适配器
+│   │   ├── eeg_to_text_wrapper.py        # EEG-To-Text wrapper
+│   │   ├── eeg2text_wrapper.py           # EEG2Text wrapper
+│   │   ├── cet_mae_wrapper.py            # CET-MAE wrapper
+│   │   └── glim_wrapper.py               # GLIM wrapper
+│   ├── utils/                            # 通用工具库
+│   │   ├── logging_utils.py              # 日志配置
+│   │   ├── retrieval_utils.py            # 检索评估公共函数
+│   │   ├── noise_utils.py                # 噪声生成工具
+│   │   └── arg_utils.py                  # CLI 参数解析工具
+│   ├── scripts/                          # 脚本模块（按功能分类）
+│   │   ├── retrieval/                    # 编码器检索评估
+│   │   │   ├── run_cet_mae_retrieval.py
+│   │   │   ├── run_eeg2text_retrieval.py
+│   │   │   ├── run_eeg_to_text_retrieval.py
+│   │   │   └── run_glim_retrieval.py
+│   │   ├── diagnostics/                  # 信号诊断与对照实验
+│   │   │   ├── validate_eeg_signal.py
+│   │   │   └── compare_contrast_results.py
+│   │   ├── analysis/                     # 统计分析与可视化
+│   │   │   ├── run_significance_tests.py
+│   │   │   ├── visualize_b_embeddings.py
+│   │   │   └── compute_eeg2text_metrics.py
+│   │   ├── validation/                   # 数据验证与测试
+│   │   │   ├── validate_data_consistency.py
+│   │   │   └── local_test.py
+│   │   ├── setup/                        # 环境配置
+│   │   │   └── setup_env.py
+│   │   └── shell/                        # Shell 编排脚本
+│   │       ├── run_eeg2text_pipeline.sh
+│   │       ├── run_eval_dummy.sh
+│   │       └── run_eval_glim.sh
+│   └── test_outputs/                     # 测试输出
 │
-├── data/                     # 数据目录
-│   ├── ZuCo1/               # ZuCo v1.0 数据
-│   │   └── task_materials/  # 任务材料（标签文件）
-│   └── ZuCo2/               # ZuCo v2.0 数据
-│       └── task_materials/
+├── models/                       # 模型代码目录
+│   ├── CET-MAE/                 # CET-MAE 模型
+│   ├── EEG-To-Text-main/        # EEG-To-Text 模型
+│   ├── EEG2Text-main/           # EEG2Text 模型
+│   ├── GLIM-main/               # GLIM 模型
+│   └── DeWave-main/             # DeWave 模型
 │
-├── models/                   # 模型代码目录
-│   ├── CET-MAE/             # CET-MAE 模型
-│   ├── DeWave-main/         # DeWave 模型
-│   ├── EEG-To-Text-main/    # EEG-To-Text 模型
-│   ├── EEG2Text-main/       # EEG2Text 模型
-│   └── GLIM-main/           # GLIM 模型
+├── data/                         # 数据目录
+│   ├── ZuCo1/                   # ZuCo v1.0（task1-SR, task2-NR, task3-TSR）
+│   └── ZuCo2/                   # ZuCo v2.0（task1-NR, task2-TSR）
 │
-└── docs/                     # 文档目录
-    ├── EEG_benchmark_eval_scheme.md      # 详细评估方案
-    ├── EEG_data_preprocessing_comparison.md  # 数据预处理对比
-    └── EEG_models_comparison.md          # 模型对比分析
+└── docs/                         # 文档目录
+    ├── EEG_benchmark_eval_scheme.md              # 详细评估方案
+    ├── EEG_to_Text_Contrast_Experiment_Report.md # 对比实验报告
+    ├── Experiment.md                             # 实验设计
+    ├── todo.md                                   # 待办事项
+    ├── detail/                                   # 详细设计文档
+    │   ├── experiment_A_details.md
+    │   ├── experiment_B_details.md
+    │   └── unified_dataset.md
+    └── spec/                                     # 规范文档
+        ├── contrast_experiment_spec.md
+        └── data_pipeline_optimization_spec.md
 ```
+
+### 核心模块说明
+
+#### 评估模块 (`evaluation/`)
+
+| 文件 | 用途 |
+|------|------|
+| `model_wrappers.py` | `BenchmarkModelWrapper` 基类与 `build_model_wrapper` 工厂函数 |
+| `eval_runner.py` | 评估流程管理器（含随机种子、统一输出 schema） |
+| `metrics.py` | BLEU/ROUGE/WER/BERTScore 指标计算 |
+| `embedding_io.py` | 嵌入向量保存/加载（numpy 格式） |
+| `significance.py` | Wilcoxon、permutation、bootstrap 等统计检验 |
+| `visualization.py` | t-SNE/UMAP 降维、散点图等可视化 |
+
+#### 工具库 (`utils/`)
+
+| 文件 | 用途 |
+|------|------|
+| `logging_utils.py` | 日志配置 |
+| `retrieval_utils.py` | 检索评估公共函数（`mean_pool`, `retrieval_metrics`, `grouped_metrics`, `encode_texts`） |
+| `noise_utils.py` | 噪声生成工具（`gaussian`, `zero`, `shuffle`, `apply_noise`） |
+| `arg_utils.py` | CLI 参数标准化（`add_common_retrieval_args`, `add_diagnostic_args`） |
+
+#### 脚本模块 (`scripts/`)
+
+| 子模块 | 用途 |
+|--------|------|
+| `scripts/retrieval/` | 4 个模型的编码器检索评估（R@1/R@5/R@10, MRR） |
+| `scripts/diagnostics/` | 诊断线 A（EEG 信号验证）和 A/B 线对比分析 |
+| `scripts/analysis/` | 统计显著性检验、嵌入向量可视化、离线指标计算 |
+| `scripts/validation/` | 统一数据与模型原始数据一致性验证、本地集成测试 |
+| `scripts/setup/` | 开发环境初始化（uv + PyTorch） |
+| `scripts/shell/` | 端到端实验流程编排 Shell 脚本 |
 
 ## 快速开始
 
@@ -118,6 +186,28 @@ for batch in dataset:
     # 生成文本
     generated_text = model.generate_text(eeg, mask, meta, batch=batch)
     print(f"Generated: {generated_text}")
+```
+
+### 运行检索评估
+
+```bash
+# 示例：运行 EEG-To-Text 编码器检索评估
+python -m benchmark_eval.scripts.retrieval.run_eeg_to_text_retrieval \
+    --checkpoint path/to/checkpoint.pt \
+    --data_path benchmark_eval/data/unified_zuco.pkl
+
+# 示例：运行 CET-MAE 检索评估
+python -m benchmark_eval.scripts.retrieval.run_cet_mae_retrieval \
+    --checkpoint path/to/checkpoint.pt \
+    --data_path benchmark_eval/data/unified_zuco.pkl
+```
+
+### 运行诊断实验
+
+```bash
+# 示例：EEG 信号验证（诊断线 A）
+python -m benchmark_eval.scripts.diagnostics.validate_eeg_signal \
+    --data_path benchmark_eval/data/unified_zuco.pkl
 ```
 
 ## 支持的模型
@@ -202,6 +292,7 @@ for batch in dataset:
   - R@1 (Recall@1)：正确文本排在第 1 位的比例
   - R@5 (Recall@5)：正确文本在前 5 名的比例
   - R@10 (Recall@10)：正确文本在前 10 名的比例
+  - MRR (Mean Reciprocal Rank)：正确文本排名倒数的均值
 - **适用场景**：特别适合评估 CET-MAE 等预训练编码器的表示学习能力
 
 ## 开发指南
@@ -253,8 +344,13 @@ evaluator.run(dataset, model)
 ## 文档
 
 - [详细评估方案](docs/EEG_benchmark_eval_scheme.md) - 完整的技术方案文档
-- [数据预处理对比](docs/EEG_data_preprocessing_comparison.md) - 各模型数据预处理流程对比
-- [模型对比分析](docs/EEG_models_comparison.md) - 各模型架构和特点对比
+- [对比实验报告](docs/EEG_to_Text_Contrast_Experiment_Report.md) - EEG-to-Text 对比实验结果
+- [实验设计](docs/Experiment.md) - 实验设计方案
+- [实验A详情](docs/detail/experiment_A_details.md) - 诊断线A实验细节
+- [实验B详情](docs/detail/experiment_B_details.md) - 诊断线B实验细节
+- [统一数据集说明](docs/detail/unified_dataset.md) - 数据集构建与格式说明
+- [对照实验规范](docs/spec/contrast_experiment_spec.md) - 对照实验设计规范
+- [数据管道优化规范](docs/spec/data_pipeline_optimization_spec.md) - 数据处理优化规范
 
 ## 引用
 

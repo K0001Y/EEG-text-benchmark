@@ -1,0 +1,875 @@
+{
+  "correction": {
+    "a1_word_vs_noise_holm": {
+      "method": "holm_bonferroni",
+      "labels": [
+        "A1a.word_vs_noise.top1",
+        "A1a.word_vs_noise.top5",
+        "A1a.word_vs_noise.top10",
+        "A1b.word_vs_noise.top1",
+        "A1b.word_vs_noise.top5",
+        "A1b.word_vs_noise.top10",
+        "A1c.word_vs_noise.top1",
+        "A1c.word_vs_noise.top5",
+        "A1c.word_vs_noise.top10"
+      ],
+      "p_raw": [
+        0.1875,
+        0.0625,
+        0.0625,
+        0.375,
+        0.0625,
+        0.0625,
+        0.1875,
+        0.0625,
+        0.0625
+      ],
+      "p_adj": [
+        0.5625,
+        0.5625,
+        0.5625,
+        0.5625,
+        0.5625,
+        0.5625,
+        0.5625,
+        0.5625,
+        0.5625
+      ],
+      "reject_at_0.05": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "n_tests": 9,
+      "alpha": 0.05
+    }
+  },
+  "A1a": {
+    "word_vs_noise.top1": {
+      "test": "wilcoxon",
+      "statistic": 2.0,
+      "p": 0.1875,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 0.927319274306412,
+        "label": "large",
+        "mean_diff": 0.0089324
+      },
+      "ci95": [
+        0.0004004000000000001,
+        0.015645
+      ]
+    },
+    "word_vs_noise.top5": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 2.765411329190118,
+        "label": "large",
+        "mean_diff": 0.0328566
+      },
+      "ci95": [
+        0.023544800000000005,
+        0.042168399999999995
+      ]
+    },
+    "word_vs_noise.top10": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 2.3653921213126528,
+        "label": "large",
+        "mean_diff": 0.05810220000000001
+      },
+      "ci95": [
+        0.03961619999999999,
+        0.07798379999999999
+      ]
+    },
+    "sent_vs_noise.top1": {
+      "test": "wilcoxon",
+      "statistic": 3.0,
+      "p": 0.3125,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 0.6819001492364813,
+        "label": "medium",
+        "mean_diff": 0.0084468
+      },
+      "ci95": [
+        -0.0013732000000000002,
+        0.0176836
+      ]
+    },
+    "sent_vs_noise.top5": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 1.627056871059355,
+        "label": "large",
+        "mean_diff": 0.032440000000000004
+      },
+      "ci95": [
+        0.01692403,
+        0.047566
+      ]
+    },
+    "sent_vs_noise.top10": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 2.021362563918212,
+        "label": "large",
+        "mean_diff": 0.05826579999999999
+      },
+      "ci95": [
+        0.03609683,
+        0.0804068
+      ]
+    },
+    "word_vs_sent.top1": {
+      "test": "wilcoxon",
+      "statistic": 4.0,
+      "p": 0.875,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 0.08105775814679517,
+        "label": "negligible",
+        "mean_diff": 0.00048559999999999993
+      },
+      "ci95": [
+        -0.0045654,
+        0.0041948
+      ]
+    },
+    "word_vs_sent.top5": {
+      "test": "wilcoxon",
+      "statistic": 3.0,
+      "p": 1.0,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 0.045032398015877745,
+        "label": "negligible",
+        "mean_diff": 0.0004166000000000003
+      },
+      "ci95": [
+        -0.006270000000000003,
+        0.008433000000000005
+      ]
+    },
+    "word_vs_sent.top10": {
+      "test": "wilcoxon",
+      "statistic": 3.0,
+      "p": 1.0,
+      "n": 5,
+      "effect": {
+        "cohens_dz": -0.013907824869511644,
+        "label": "negligible",
+        "mean_diff": -0.00016360000000000262
+      },
+      "ci95": [
+        -0.010293000000000002,
+        0.0074766
+      ]
+    },
+    "vs_random.word_eeg.top1": {
+      "test": "binomial",
+      "statistic": 36,
+      "p": 9.097883995072462e-07,
+      "n": 1858,
+      "baseline_p0": 0.007692,
+      "observed": 0.0193756727664155,
+      "effect": {
+        "delta_vs_baseline": 0.0116836727664155
+      },
+      "ci95": [
+        0.014419291431214138,
+        1.0
+      ]
+    },
+    "vs_random.sent_eeg.top1": {
+      "test": "binomial",
+      "statistic": 35,
+      "p": 2.3564001104518186e-06,
+      "n": 1858,
+      "baseline_p0": 0.007692,
+      "observed": 0.01883745963401507,
+      "effect": {
+        "delta_vs_baseline": 0.01114545963401507
+      },
+      "ci95": [
+        0.013954040015643444,
+        1.0
+      ]
+    },
+    "vs_random.noise.top1": {
+      "test": "binomial",
+      "statistic": 19,
+      "p": 0.13334264722737385,
+      "n": 1858,
+      "baseline_p0": 0.007692,
+      "observed": 0.01022604951560818,
+      "effect": {
+        "delta_vs_baseline": 0.0025340495156081803
+      },
+      "ci95": [
+        0.006706475301030494,
+        1.0
+      ]
+    }
+  },
+  "A1b": {
+    "word_vs_noise.top1": {
+      "test": "wilcoxon",
+      "statistic": 2.0,
+      "p": 0.375,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 0.5510463977028482,
+        "label": "medium",
+        "mean_diff": 0.007658399999999998
+      },
+      "ci95": [
+        -0.0039051999999999997,
+        0.018018
+      ]
+    },
+    "word_vs_noise.top5": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 1.8346222558661478,
+        "label": "large",
+        "mean_diff": 0.0308284
+      },
+      "ci95": [
+        0.0180636,
+        0.044014599999999994
+      ]
+    },
+    "word_vs_noise.top10": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 2.187883312105796,
+        "label": "large",
+        "mean_diff": 0.0530914
+      },
+      "ci95": [
+        0.03466346,
+        0.0727884
+      ]
+    },
+    "sent_vs_noise.top1": {
+      "test": "wilcoxon",
+      "statistic": 3.0,
+      "p": 0.3125,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 0.6819001492364813,
+        "label": "medium",
+        "mean_diff": 0.0084468
+      },
+      "ci95": [
+        -0.0013732000000000002,
+        0.0176836
+      ]
+    },
+    "sent_vs_noise.top5": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 1.627056871059355,
+        "label": "large",
+        "mean_diff": 0.032440000000000004
+      },
+      "ci95": [
+        0.01692403,
+        0.047566
+      ]
+    },
+    "sent_vs_noise.top10": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 2.021362563918212,
+        "label": "large",
+        "mean_diff": 0.05826579999999999
+      },
+      "ci95": [
+        0.03609683,
+        0.0804068
+      ]
+    },
+    "word_vs_sent.top1": {
+      "test": "wilcoxon",
+      "statistic": 4.0,
+      "p": 0.875,
+      "n": 5,
+      "effect": {
+        "cohens_dz": -0.13247060269321712,
+        "label": "negligible",
+        "mean_diff": -0.0007884000000000002
+      },
+      "ci95": [
+        -0.0046086,
+        0.0047344
+      ]
+    },
+    "word_vs_sent.top5": {
+      "test": "wilcoxon",
+      "statistic": 6.0,
+      "p": 0.8125,
+      "n": 5,
+      "effect": {
+        "cohens_dz": -0.1394955353965158,
+        "label": "negligible",
+        "mean_diff": -0.0016116000000000019
+      },
+      "ci95": [
+        -0.0107796,
+        0.007253199999999999
+      ]
+    },
+    "word_vs_sent.top10": {
+      "test": "wilcoxon",
+      "statistic": 4.0,
+      "p": 0.4375,
+      "n": 5,
+      "effect": {
+        "cohens_dz": -0.5866753742063996,
+        "label": "medium",
+        "mean_diff": -0.005174400000000001
+      },
+      "ci95": [
+        -0.010972800000000005,
+        0.00259080000000001
+      ]
+    },
+    "vs_random.word_eeg.top1": {
+      "test": "binomial",
+      "statistic": 33,
+      "p": 1.4543866394613099e-05,
+      "n": 1858,
+      "baseline_p0": 0.007692,
+      "observed": 0.01776103336921421,
+      "effect": {
+        "delta_vs_baseline": 0.01006903336921421
+      },
+      "ci95": [
+        0.013026914236823374,
+        1.0
+      ]
+    },
+    "vs_random.sent_eeg.top1": {
+      "test": "binomial",
+      "statistic": 35,
+      "p": 2.3564001104518186e-06,
+      "n": 1858,
+      "baseline_p0": 0.007692,
+      "observed": 0.01883745963401507,
+      "effect": {
+        "delta_vs_baseline": 0.01114545963401507
+      },
+      "ci95": [
+        0.013954040015643444,
+        1.0
+      ]
+    },
+    "vs_random.noise.top1": {
+      "test": "binomial",
+      "statistic": 19,
+      "p": 0.13334264722737385,
+      "n": 1858,
+      "baseline_p0": 0.007692,
+      "observed": 0.01022604951560818,
+      "effect": {
+        "delta_vs_baseline": 0.0025340495156081803
+      },
+      "ci95": [
+        0.006706475301030494,
+        1.0
+      ]
+    }
+  },
+  "A1c": {
+    "word_vs_noise.top1": {
+      "test": "wilcoxon",
+      "statistic": 2.0,
+      "p": 0.1875,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 0.927319274306412,
+        "label": "large",
+        "mean_diff": 0.0089324
+      },
+      "ci95": [
+        0.0004004000000000001,
+        0.015645
+      ]
+    },
+    "word_vs_noise.top5": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 2.765411329190118,
+        "label": "large",
+        "mean_diff": 0.0328566
+      },
+      "ci95": [
+        0.023544800000000005,
+        0.042168399999999995
+      ]
+    },
+    "word_vs_noise.top10": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 2.3653921213126528,
+        "label": "large",
+        "mean_diff": 0.05810220000000001
+      },
+      "ci95": [
+        0.03961619999999999,
+        0.07798379999999999
+      ]
+    },
+    "sent_vs_noise.top1": {
+      "test": "wilcoxon",
+      "statistic": 3.0,
+      "p": 0.3125,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 0.6819001492364813,
+        "label": "medium",
+        "mean_diff": 0.0084468
+      },
+      "ci95": [
+        -0.0013732000000000002,
+        0.0176836
+      ]
+    },
+    "sent_vs_noise.top5": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 1.627056871059355,
+        "label": "large",
+        "mean_diff": 0.032440000000000004
+      },
+      "ci95": [
+        0.01692403,
+        0.047566
+      ]
+    },
+    "sent_vs_noise.top10": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 2.021362563918212,
+        "label": "large",
+        "mean_diff": 0.05826579999999999
+      },
+      "ci95": [
+        0.03609683,
+        0.0804068
+      ]
+    },
+    "word_vs_sent.top1": {
+      "test": "wilcoxon",
+      "statistic": 4.0,
+      "p": 0.875,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 0.08105775814679517,
+        "label": "negligible",
+        "mean_diff": 0.00048559999999999993
+      },
+      "ci95": [
+        -0.0045654,
+        0.0041948
+      ]
+    },
+    "word_vs_sent.top5": {
+      "test": "wilcoxon",
+      "statistic": 3.0,
+      "p": 1.0,
+      "n": 5,
+      "effect": {
+        "cohens_dz": 0.045032398015877745,
+        "label": "negligible",
+        "mean_diff": 0.0004166000000000003
+      },
+      "ci95": [
+        -0.006270000000000003,
+        0.008433000000000005
+      ]
+    },
+    "word_vs_sent.top10": {
+      "test": "wilcoxon",
+      "statistic": 3.0,
+      "p": 1.0,
+      "n": 5,
+      "effect": {
+        "cohens_dz": -0.013907824869511644,
+        "label": "negligible",
+        "mean_diff": -0.00016360000000000262
+      },
+      "ci95": [
+        -0.010293000000000002,
+        0.0074766
+      ]
+    },
+    "vs_random.word_eeg.top1": {
+      "test": "binomial",
+      "statistic": 36,
+      "p": 9.097883995072462e-07,
+      "n": 1858,
+      "baseline_p0": 0.007692,
+      "observed": 0.0193756727664155,
+      "effect": {
+        "delta_vs_baseline": 0.0116836727664155
+      },
+      "ci95": [
+        0.014419291431214138,
+        1.0
+      ]
+    },
+    "vs_random.sent_eeg.top1": {
+      "test": "binomial",
+      "statistic": 35,
+      "p": 2.3564001104518186e-06,
+      "n": 1858,
+      "baseline_p0": 0.007692,
+      "observed": 0.01883745963401507,
+      "effect": {
+        "delta_vs_baseline": 0.01114545963401507
+      },
+      "ci95": [
+        0.013954040015643444,
+        1.0
+      ]
+    },
+    "vs_random.noise.top1": {
+      "test": "binomial",
+      "statistic": 19,
+      "p": 0.13334264722737385,
+      "n": 1858,
+      "baseline_p0": 0.007692,
+      "observed": 0.01022604951560818,
+      "effect": {
+        "delta_vs_baseline": 0.0025340495156081803
+      },
+      "ci95": [
+        0.006706475301030494,
+        1.0
+      ]
+    }
+  },
+  "A2_cosine": {
+    "note": "observational; statistic_only",
+    "eeg_same_sent_mean": 0.579848,
+    "eeg_diff_sent_mean": 0.5722,
+    "eeg_delta_same_minus_diff": 0.007647999999999988,
+    "noise_same_sent_mean": -2.4e-05
+  },
+  "A2_eta": {
+    "subj_vs_sent_wilcoxon": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 4.1426834134039256e-139,
+      "n": 840,
+      "effect": {
+        "cohens_dz": 3.0527621415726967,
+        "label": "large",
+        "mean_diff": 0.3875233948985673
+      },
+      "ci95": [
+        0.37893880028228244,
+        0.3960118116902331
+      ]
+    },
+    "permutation_sample": [
+      {
+        "dim": 647,
+        "sentence": {
+          "test": "permutation_eta",
+          "observed": 0.05011043146464573,
+          "null_mean": 0.06922037518109744,
+          "null_std": 0.007926013656323568,
+          "null_ci95": [
+            0.05574425578266468,
+            0.08751867641811792
+          ],
+          "p": 1.0,
+          "n_perm": 200
+        },
+        "subject": {
+          "test": "permutation_eta",
+          "observed": 0.4227865391637269,
+          "null_mean": 0.015073898017141263,
+          "null_std": 0.004183131701246412,
+          "null_ci95": [
+            0.008564628341169887,
+            0.02511823625248924
+          ],
+          "p": 0.005,
+          "n_perm": 200
+        }
+      },
+      {
+        "dim": 368,
+        "sentence": {
+          "test": "permutation_eta",
+          "observed": 0.15942769341265825,
+          "null_mean": 0.06917910414321846,
+          "null_std": 0.008011554398159164,
+          "null_ci95": [
+            0.05531798378775346,
+            0.08330335668579558
+          ],
+          "p": 0.005,
+          "n_perm": 200
+        },
+        "subject": {
+          "test": "permutation_eta",
+          "observed": 0.4739542269798972,
+          "null_mean": 0.015617391002779564,
+          "null_std": 0.0038283018404800207,
+          "null_ci95": [
+            0.009028066326039696,
+            0.024216990355425027
+          ],
+          "p": 0.005,
+          "n_perm": 200
+        }
+      },
+      {
+        "dim": 548,
+        "sentence": {
+          "test": "permutation_eta",
+          "observed": 0.09320249363798928,
+          "null_mean": 0.06998953565296284,
+          "null_std": 0.0088502828973718,
+          "null_ci95": [
+            0.054054731599667706,
+            0.08649273918939496
+          ],
+          "p": 0.005,
+          "n_perm": 200
+        },
+        "subject": {
+          "test": "permutation_eta",
+          "observed": 0.6021930168038875,
+          "null_mean": 0.015650702227367,
+          "null_std": 0.004501510815459459,
+          "null_ci95": [
+            0.007854794096077486,
+            0.025332320819315884
+          ],
+          "p": 0.005,
+          "n_perm": 200
+        }
+      },
+      {
+        "dim": 74,
+        "sentence": {
+          "test": "permutation_eta",
+          "observed": 0.05568511049015506,
+          "null_mean": 0.06950606623284562,
+          "null_std": 0.008663382999809828,
+          "null_ci95": [
+            0.055004769967861224,
+            0.08785574016878442
+          ],
+          "p": 0.97,
+          "n_perm": 200
+        },
+        "subject": {
+          "test": "permutation_eta",
+          "observed": 0.5237074489826308,
+          "null_mean": 0.015838628176757096,
+          "null_std": 0.003980060530499027,
+          "null_ci95": [
+            0.008381360382061573,
+            0.023611478036503788
+          ],
+          "p": 0.005,
+          "n_perm": 200
+        }
+      },
+      {
+        "dim": 363,
+        "sentence": {
+          "test": "permutation_eta",
+          "observed": 0.1354787967595135,
+          "null_mean": 0.06948905940099057,
+          "null_std": 0.00806727992273449,
+          "null_ci95": [
+            0.052556780839794606,
+            0.08420363430394805
+          ],
+          "p": 0.005,
+          "n_perm": 200
+        },
+        "subject": {
+          "test": "permutation_eta",
+          "observed": 0.5073914367547834,
+          "null_mean": 0.015419444708170405,
+          "null_std": 0.003910218094003627,
+          "null_ci95": [
+            0.008899854808085618,
+            0.02390522538803785
+          ],
+          "p": 0.005,
+          "n_perm": 200
+        }
+      }
+    ]
+  },
+  "A3_lp": {
+    "a3lp_vs_a1a_word.top1": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.125,
+      "n": 5,
+      "effect": {
+        "cohens_dz": -1.571299662598976,
+        "label": "large",
+        "mean_diff": -0.0090166
+      },
+      "ci95": [
+        -0.012886600000000002,
+        -0.0037573999999999997
+      ]
+    },
+    "a3lp_vs_a1a_word.top5": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": -2.595744516691337,
+        "label": "large",
+        "mean_diff": -0.037003600000000005
+      },
+      "ci95": [
+        -0.050059,
+        -0.027338400000000002
+      ]
+    },
+    "a3lp_vs_a1a_word.top10": {
+      "test": "wilcoxon",
+      "statistic": 0.0,
+      "p": 0.0625,
+      "n": 5,
+      "effect": {
+        "cohens_dz": -2.889763182035127,
+        "label": "large",
+        "mean_diff": -0.06538359999999999
+      },
+      "ci95": [
+        -0.085376,
+        -0.05091319999999999
+      ]
+    }
+  },
+  "A3_session_retrieval": {
+    "eeg.aggregated_all.r@1_vs_random": {
+      "test": "binomial",
+      "statistic": 0,
+      "p": 1.0,
+      "n": 5,
+      "baseline_p0": 0.2,
+      "observed": 0.0,
+      "effect": {
+        "delta_vs_baseline": -0.2
+      },
+      "ci95": [
+        0.0,
+        1.0
+      ]
+    },
+    "eeg.aggregated_all.r@5_vs_random": {
+      "test": "binomial",
+      "statistic": 5,
+      "p": 1.0,
+      "n": 5,
+      "baseline_p0": 1.0,
+      "observed": 1.0,
+      "effect": {
+        "delta_vs_baseline": 0.0
+      },
+      "ci95": [
+        0.5492802716530591,
+        1.0
+      ]
+    },
+    "eeg.aggregated_all.r@10_vs_random": {
+      "error": "p (2.0) must be in range [0,1]"
+    },
+    "noise.aggregated_all.r@1_vs_random": {
+      "test": "binomial",
+      "statistic": 0,
+      "p": 1.0,
+      "n": 5,
+      "baseline_p0": 0.2,
+      "observed": 0.0,
+      "effect": {
+        "delta_vs_baseline": -0.2
+      },
+      "ci95": [
+        0.0,
+        1.0
+      ]
+    },
+    "noise.aggregated_all.r@5_vs_random": {
+      "test": "binomial",
+      "statistic": 5,
+      "p": 1.0,
+      "n": 5,
+      "baseline_p0": 1.0,
+      "observed": 1.0,
+      "effect": {
+        "delta_vs_baseline": 0.0
+      },
+      "ci95": [
+        0.5492802716530591,
+        1.0
+      ]
+    },
+    "noise.aggregated_all.r@10_vs_random": {
+      "error": "p (2.0) must be in range [0,1]"
+    }
+  }
+}

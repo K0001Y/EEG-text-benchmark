@@ -894,11 +894,13 @@ def run_tsne_visualization(features, sentence_ids, subject_ids, task_ids,
             fig, ax = plt.subplots(1, 1, figsize=(10, 8))
             unique_ids = sorted(set(color_ids))
 
-            # 限制颜色数量
-            if len(unique_ids) > 20:
-                cmap = plt.cm.get_cmap("tab20", min(len(unique_ids), 20))
-            else:
-                cmap = plt.cm.get_cmap("tab20", len(unique_ids))
+            # 限制颜色数量；兼容 matplotlib 3.9+（plt.cm.get_cmap 已废弃）
+            n_colors = max(1, min(len(unique_ids), 20))
+            try:
+                import matplotlib as _mpl
+                cmap = _mpl.colormaps.get_cmap("tab20").resampled(n_colors)
+            except Exception:
+                cmap = plt.get_cmap("tab20", n_colors)
 
             for idx, uid in enumerate(unique_ids):
                 mask = [cid == uid for cid in color_ids]
@@ -1687,12 +1689,15 @@ def main():
 
     # ── A2: t-SNE 可视化 ──
     if not args.skip_tsne:
-        run_tsne_visualization(
-            word_feats_mp, test_data["sentence_id_list"],
-            test_data["subject_list"], test_data["task_list"],
-            args.output_dir, logger,
-            session_ids=test_data["session_list"],
-        )
+        try:
+            run_tsne_visualization(
+                word_feats_mp, test_data["sentence_id_list"],
+                test_data["subject_list"], test_data["task_list"],
+                args.output_dir, logger,
+                session_ids=test_data["session_list"],
+            )
+        except Exception as _e:
+            logger.warning("A2 t-SNE 可视化失败，跳过：%s", _e)
 
     # ──────────────────────────────────────────────────────────────────────
     # A3: 去被试化验证（无条件执行）

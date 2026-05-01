@@ -53,6 +53,9 @@ def reduce_pca_tsne(
     if X.ndim != 2 or X.shape[0] < 3:
         raise ValueError(f"reduce_pca_tsne: invalid shape {X.shape}")
 
+    # NaN/Inf 清理：部分模型在 zero/shuffle 条件下输出可能存在非有限值
+    X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
+
     if X.shape[1] > pca_dim:
         pca = PCA(n_components=min(pca_dim, X.shape[1]), random_state=seed)
         Xp = pca.fit_transform(X)
@@ -85,6 +88,8 @@ def reduce_pca_tsne_multi(
     if X.ndim != 2 or X.shape[0] < 3:
         raise ValueError(f"reduce_pca_tsne_multi: invalid shape {X.shape}")
 
+    X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
+
     if X.shape[1] > pca_dim:
         pca = PCA(n_components=min(pca_dim, X.shape[1]), random_state=seed)
         Xp = pca.fit_transform(X)
@@ -110,11 +115,21 @@ def _ensure_mpl() -> None:
 
 
 def _pick_cmap(n: int):
-    if n <= 10:
-        return plt.cm.get_cmap("tab10", n)
-    if n <= 20:
-        return plt.cm.get_cmap("tab20", n)
-    return plt.cm.get_cmap("hsv", n)
+    # matplotlib 3.9+ 废弃 plt.cm.get_cmap，改用 matplotlib.colormaps.get_cmap
+    try:
+        import matplotlib as _mpl
+        _get = _mpl.colormaps.get_cmap
+        if n <= 10:
+            return _get("tab10").resampled(n)
+        if n <= 20:
+            return _get("tab20").resampled(n)
+        return _get("hsv").resampled(n)
+    except Exception:
+        if n <= 10:
+            return plt.get_cmap("tab10", n)
+        if n <= 20:
+            return plt.get_cmap("tab20", n)
+        return plt.get_cmap("hsv", n)
 
 
 def plot_scatter_colored(
