@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
-"""CET-MAE 编码器 EEG-文本检索评估。
+"""EEG-To-Text (BrainTranslator) 编码器 EEG-文本检索评估。
 
-评估流程：
-  1. 构建候选文本池：测试集所有唯一参考文本
-  2. BART t_branch_encoder 编码文本 → 文本向量（与 CET-MAE 对比学习对齐空间一致）
-  3. CET-MAE encoder（e_branch→fc_eeg→unify_branch）编码 EEG → EEG 向量
-  4. 余弦相似度矩阵 → 排名 → R@1/R@5/R@10/MRR
+EEG 编码路径：
+  eeg_word_norm1d (B, L, 840)
+    → additional_encoder (TransformerEncoder ×6, d_model=840)
+    → fc1 + ReLU   → (B, L, 1024)
+    → mean_pool    → (B, 1024)  [L2 归一化]
+
+文本编码路径：
+  text → BartTokenizer → BART Encoder (pretrained.model.encoder)
+       → mean_pool → (B, 1024)  [L2 归一化]
+
+两者处于同一 1024 维空间（BART encoder 输出维度），
+BrainTranslator 通过端到端训练将 EEG 对齐到该空间。
 
 用法（项目根目录下）：
-  python benchmark_eval/scripts/run_cet_mae_retrieval.py \
+  python benchmark_eval/scripts/retrieval/run_eeg_to_text_retrieval.py \
       --data-path benchmark_eval/data/unified_zuco.pkl \
-      --model-checkpoint models/CET-MAE/checkpoints/decoding/cet_mae_benchmark_best.pt \
-      --output-dir benchmark_eval/test_outputs/eval_cet_mae_retrieval \
+      --model-checkpoint models/EEG-To-Text-main/checkpoints/decoding/best/task1_task2_taskNRv2_finetune_BrainTranslator_2steptraining_b32_20_30_5e-05_5e-07_unique_sent_EEG.pt \
+      --output-dir benchmark_eval/test_outputs/eval_eeg_to_text_retrieval \
       --phase test
 """
 
@@ -28,18 +35,18 @@ from torch.utils.data import DataLoader
 
 # ── 路径 ──────────────────────────────────────────────────────────────────
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-BENCH_DIR = os.path.dirname(THIS_DIR)
+BENCH_DIR = os.path.dirname(os.path.dirname(THIS_DIR))
 PROJ_ROOT = os.path.dirname(BENCH_DIR)
-CET_MAE_DIR = os.path.join(PROJ_ROOT, "models", "CET-MAE")
+EEG2TEXT_DIR = os.path.join(PROJ_ROOT, "models", "EEG-To-Text-main")
 
-for _p in [BENCH_DIR, CET_MAE_DIR]:
+for _p in [BENCH_DIR, EEG2TEXT_DIR]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
 from data_processing.dataset import UnifiedDataset, custom_collate_fn
 from utils.logging_utils import setup_logging, get_logger
-from wrappers.cet_mae_wrapper import CETMAEWrapper
-from evaluation.embedding_io import save_embeddings
+from utils.retrieval_utils import mean_pool, retrieval_metrics, grouped_metrics, encode_texts
+from wrappers.eeg_to_text_wrapper import EEGToTextWrapper
 
 
 NOISE_TYPES = ("real", "gaussian", "shuffle", "zero")
@@ -53,85 +60,35 @@ def parse_args():
     p.add_argument("--phase", default="test")
     p.add_argument("--noise-type", default="real", choices=NOISE_TYPES,
                    help="噪声条件: real(默认)/gaussian/shuffle/zero")
+    p.add_argument("--model-type", default="bart", choices=["bart", "t5"])
     p.add_argument("--eeg-batch-size", type=int, default=32)
     p.add_argument("--text-batch-size", type=int, default=64)
     return p.parse_args()
 
 
-# ── 工具函数 ──────────────────────────────────────────────────────────────
+# ── 模型特有函数 ──────────────────────────────────────────────────────────
 
-def mean_pool(hidden: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-    """mask 加权平均池化。mask: 1=有效, 0=填充. shape (B,L,D) → (B,D)"""
-    m = mask.float().unsqueeze(-1)
-    return (hidden * m).sum(1) / m.sum(1).clamp(min=1e-9)
+def encode_eegs(brain_translator, eeg_batches, mask_batches, device, logger=None):
+    """BrainTranslator additional_encoder + fc1 编码 EEG → L2 归一化向量 (N, 1024)
 
-
-def encode_texts(model, tokenizer, texts: List[str], device, bs=64, logger=None):
-    """BART t_branch_encoder 编码文本列表 → L2 归一化向量 (N, 1024)"""
+    编码路径：
+      EEG (B, L, 840) → additional_encoder → fc1 + ReLU → (B, L, 1024)
+                       → mean_pool         → (B, 1024)
+    """
     vecs = []
-    for i in range(0, len(texts), bs):
-        batch = texts[i: i + bs]
-        tok = tokenizer(batch, return_tensors="pt", padding=True,
-                        truncation=True, max_length=512)
-        ids = tok["input_ids"].to(device)
-        attn = tok["attention_mask"].to(device)
-        with torch.no_grad():
-            out = model.t_branch_encoder(input_ids=ids, attention_mask=attn)
-            v = F.normalize(mean_pool(out.last_hidden_state, attn), dim=-1)
-        vecs.append(v.cpu())
-        if logger and (i // bs + 1) % 10 == 0:
-            logger.info("  text enc %d/%d", i // bs + 1, (len(texts) + bs - 1) // bs)
-    return torch.cat(vecs, 0)
-
-
-def encode_eegs(model, eeg_batches, mask_batches, device, logger=None):
-    """CET-MAE encoder 编码 EEG 批次列表 → L2 归一化向量 (N, 1024)"""
-    vecs = []
+    total = len(eeg_batches)
     for bi, (eeg_t, mask_t) in enumerate(zip(eeg_batches, mask_batches)):
         eeg = eeg_t.to(device)
         mask = mask_t.to(device)
-        inv = (1 - mask).bool()
+        mask_invert = (1 - mask).bool()   # src_key_padding_mask: True=padding
         with torch.no_grad():
-            x = eeg + model.pos_embed_e(eeg)
-            x = model.e_branch(x, src_key_padding_mask=inv)
-            x = model.act(model.fc_eeg(x))
-            x = model.unify_branch(x, src_key_padding_mask=inv, modality="e")
-            v = F.normalize(mean_pool(x, mask), dim=-1)
+            # addin_forward: additional_encoder → fc1 + ReLU → (B, L, 1024)
+            emb = brain_translator.addin_forward(eeg, mask_invert)
+            v = F.normalize(mean_pool(emb, mask), dim=-1)
         vecs.append(v.cpu())
         if logger and (bi + 1) % 20 == 0:
-            logger.info("  eeg enc %d/%d", bi + 1, len(eeg_batches))
+            logger.info("  eeg enc %d/%d", bi + 1, total)
     return torch.cat(vecs, 0)
-
-
-def retrieval_metrics(eeg_vecs, text_vecs, gt_idx, ks=(1, 5, 10)):
-    """余弦相似度排名 → R@K + MRR。返回 (metrics_dict, ranks_tensor)"""
-    sim = eeg_vecs @ text_vecs.T   # (N_eeg, N_texts)
-    ranks = []
-    for i, g in enumerate(gt_idx):
-        order = torch.argsort(sim[i], descending=True)
-        rank = (order == g).nonzero(as_tuple=True)[0].item() + 1
-        ranks.append(rank)
-    r = torch.tensor(ranks, dtype=torch.float)
-    m = {f"r@{k}": float((r <= k).float().mean()) for k in ks}
-    m["mrr"] = float((1.0 / r).mean())
-    return m, r
-
-
-def grouped_metrics(eeg_vecs, text_vecs, gt_idx, meta_list, ks=(1, 5, 10)):
-    """按 task / subject / dataset 分组"""
-    def _by(field):
-        grps = defaultdict(list)
-        for i, m in enumerate(meta_list):
-            grps[m.get(field, "unknown")].append(i)
-        out = {}
-        for gval, idxs in grps.items():
-            gm, gr = retrieval_metrics(eeg_vecs[idxs], text_vecs,
-                                       [gt_idx[i] for i in idxs], ks)
-            out[gval] = {"sample_count": len(idxs), "metrics": gm,
-                         "mean_rank": float(gr.mean()), "median_rank": float(gr.median())}
-        return out
-    return {"by_task": _by("task"), "by_subject": _by("subject"),
-            "by_dataset": _by("dataset")}
 
 
 # ── main ──────────────────────────────────────────────────────────────────
@@ -142,7 +99,7 @@ def main():
     output_dir = args.output_dir
     os.makedirs(output_dir, exist_ok=True)
     logger = setup_logging(output_dir, log_name="retrieval_eval.log")
-    logger.info("CET-MAE Retrieval Eval | args=%s", vars(args))
+    logger.info("EEG-To-Text Retrieval Eval | args=%s", vars(args))
 
     # 1. 数据集（根据噪声条件配置）
     ds_kwargs = dict(data_path=args.data_path, phase=args.phase)
@@ -156,12 +113,20 @@ def main():
     logger.info("Dataset: %d samples (phase=%s, noise=%s)",
                 len(ds), args.phase, args.noise_type)
 
-    # 2. 加载模型
-    logger.info("Loading CET-MAE wrapper...")
-    wrapper = CETMAEWrapper(model_checkpoint=args.model_checkpoint)
+    # 2. 加载模型（复用现有 Wrapper）
+    logger.info("Loading EEGToTextWrapper...")
+    wrapper = EEGToTextWrapper(
+        model_checkpoint=args.model_checkpoint,
+        model_type=args.model_type,
+    )
     device = wrapper.device
-    model = wrapper.model
-    tok = wrapper.tokenizer
+    brain_translator = wrapper.model
+    tokenizer = wrapper.tokenizer
+
+    # 获取 BART encoder（用于文本编码）
+    # BartForConditionalGeneration → .model (BartModel) → .encoder (BartEncoder)
+    bart_encoder = brain_translator.pretrained.model.encoder
+    bart_encoder.eval()
     logger.info("Model on device: %s", device)
 
     # 3. 收集数据
@@ -174,26 +139,27 @@ def main():
         for i in range(len(batch["idx"])):
             ref_texts.append(batch["reference_text"][i])
             meta_list.append(dict(batch["meta"][i]))
-        eeg_bufs.append(batch["eeg_word_norm2d"])
-        mask_bufs.append(batch["mask_word_with_sent"])
+        # EEG-To-Text 使用 eeg_word_norm1d + mask_word
+        eeg_bufs.append(batch.get("eeg_word_norm1d", batch["eeg"]))
+        mask_bufs.append(batch.get("mask_word", batch["mask"]))
 
     # 候选文本池（去重）
     unique_texts = list(dict.fromkeys(ref_texts))
     t2i = {t: i for i, t in enumerate(unique_texts)}
     gt_idx = [t2i[t] for t in ref_texts]
     N, M = len(ref_texts), len(unique_texts)
-    logger.info("Queries: %d | Candidate pool: %d | Random R@1 ≈ %.4f%%",
+    logger.info("Queries: %d | Candidates: %d | Random R@1 ≈ %.4f%%",
                 N, M, 100.0 / M)
 
     # 4. 编码文本
     logger.info("Encoding %d texts (bs=%d)...", M, args.text_batch_size)
-    text_vecs = encode_texts(model, tok, unique_texts, device,
+    text_vecs = encode_texts(bart_encoder, tokenizer, unique_texts, device,
                              bs=args.text_batch_size, logger=logger)
     logger.info("text_vecs: %s", tuple(text_vecs.shape))
 
     # 5. 编码 EEG
     logger.info("Encoding %d EEGs (bs=%d)...", N, args.eeg_batch_size)
-    eeg_vecs = encode_eegs(model, eeg_bufs, mask_bufs, device, logger=logger)
+    eeg_vecs = encode_eegs(brain_translator, eeg_bufs, mask_bufs, device, logger=logger)
     logger.info("eeg_vecs: %s", tuple(eeg_vecs.shape))
 
     # 6. 计算指标
@@ -214,21 +180,25 @@ def main():
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
-    # 7b. 落盘嵌入向量（供 visualize_b_embeddings.py / run_significance_tests.py 使用）
-    emb_path = save_embeddings(
-        output_dir=output_dir,
-        v_eeg=eeg_vecs, v_text=text_vecs,
-        gt_idx=gt_idx, meta_list=meta_list,
-        noise_type=args.noise_type, model_name="cet_mae",
-        ranks=ranks.to(int).tolist(),
-        unique_texts=unique_texts,
-    )
-    logger.info("Embeddings → %s", emb_path)
+    # 7b. 落盘嵌入向量
+    try:
+        from evaluation.embedding_io import save_embeddings
+        emb_path = save_embeddings(
+            output_dir=output_dir,
+            v_eeg=eeg_vecs, v_text=text_vecs,
+            gt_idx=gt_idx, meta_list=meta_list,
+            noise_type=args.noise_type, model_name="eeg_to_text",
+            ranks=ranks.to(int).tolist(),
+            unique_texts=unique_texts,
+        )
+        logger.info("Embeddings → %s", emb_path)
+    except Exception as _emb_err:  # pragma: no cover
+        logger.warning("save_embeddings failed: %s", _emb_err)
 
     # 8. 打印
     sep = "=" * 60
     print(f"\n{sep}")
-    print("CET-MAE ENCODER RETRIEVAL RESULTS")
+    print("EEG-TO-TEXT (BrainTranslator) RETRIEVAL RESULTS")
     print(sep)
     print(f"  R@1          = {overall['r@1']:.4f}  ({overall['r@1']*100:.2f}%)")
     print(f"  R@5          = {overall['r@5']:.4f}  ({overall['r@5']*100:.2f}%)")
@@ -242,7 +212,6 @@ def main():
     print(sep)
     print(f"  Saved → {out_path}")
     print(sep)
-
     logger.info("Done. Results → %s", out_path)
 
 

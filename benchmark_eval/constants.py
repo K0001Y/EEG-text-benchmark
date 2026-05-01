@@ -1,6 +1,6 @@
 """全局命名常量。
 
-消除各模块中的魔法数字，统一管理所有关键超参数。
+统一管理所有关键超参数。
 引用方式：from benchmark_eval.constants import MAX_LEN, EEG_WORD_DIM, ...
 """
 

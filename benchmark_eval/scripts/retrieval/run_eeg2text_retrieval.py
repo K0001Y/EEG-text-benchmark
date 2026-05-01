@@ -14,7 +14,7 @@ EEG 编码路径（正确格式：原始时序）：
        → mean_pool → (B, 1024)  [L2 归一化]
 
 用法（项目根目录下）：
-  python benchmark_eval/scripts/run_eeg2text_retrieval.py \
+  python benchmark_eval/scripts/retrieval/run_eeg2text_retrieval.py \
       --data-path benchmark_eval/data/unified_zuco.pkl \
       --model-checkpoint models/EEG2Text-main/checkpoints/decoding/best/...pt \
       --output-dir benchmark_eval/test_outputs/eval_eeg2text_retrieval \
@@ -36,7 +36,7 @@ from torch.utils.data import DataLoader
 
 # ── 路径 ──────────────────────────────────────────────────────────────────
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-BENCH_DIR = os.path.dirname(THIS_DIR)
+BENCH_DIR = os.path.dirname(os.path.dirname(THIS_DIR))
 PROJ_ROOT = os.path.dirname(BENCH_DIR)
 EEG2TEXT_DIR = os.path.join(PROJ_ROOT, "models", "EEG2Text-main")
 
@@ -46,6 +46,7 @@ for _p in [BENCH_DIR, EEG2TEXT_DIR]:
 
 from data_processing.dataset import UnifiedDataset, custom_collate_fn, _generate_derangement
 from utils.logging_utils import setup_logging, get_logger
+from utils.retrieval_utils import mean_pool, retrieval_metrics, grouped_metrics, encode_texts
 from wrappers.eeg2text_wrapper import EEG2TextWrapper
 
 # 原始 spectro pickle 路径映射
@@ -74,15 +75,7 @@ def parse_args():
     return p.parse_args()
 
 
-# ── 工具函数 ──────────────────────────────────────────────────────────────
-
-def mean_pool(hidden: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-    """mask 加权平均池化。mask=None 时对所有时间步平均。(B,L,D) → (B,D)"""
-    if mask is None:
-        return hidden.mean(1)
-    m = mask.float().unsqueeze(-1)
-    return (hidden * m).sum(1) / m.sum(1).clamp(min=1e-9)
-
+# ── 模型特有函数 ──────────────────────────────────────────────────────────
 
 def build_lookup_table(logger) -> Dict[Tuple, np.ndarray]:
     """从所有 spectro pickle 构建 (task, subject, idx) → rawData 查找表。
@@ -165,56 +158,6 @@ def encode_eegs(brain_translator, raw_list: List[Optional[np.ndarray]],
     return torch.cat(vecs, 0)
 
 
-def encode_texts(bart_encoder, tokenizer, texts: List[str],
-                 device, bs=64, logger=None) -> torch.Tensor:
-    """BART Encoder 编码文本 → L2 归一化向量 (N, 1024)"""
-    vecs = []
-    total = (len(texts) + bs - 1) // bs
-    for i in range(0, len(texts), bs):
-        batch = texts[i: i + bs]
-        tok = tokenizer(batch, return_tensors="pt", padding=True,
-                        truncation=True, max_length=512)
-        ids = tok["input_ids"].to(device)
-        attn = tok["attention_mask"].to(device)
-        with torch.no_grad():
-            out = bart_encoder(input_ids=ids, attention_mask=attn)
-            v = F.normalize(mean_pool(out.last_hidden_state, attn), dim=-1)
-        vecs.append(v.cpu())
-        if logger and (i // bs + 1) % 5 == 0:
-            logger.info("  text enc %d/%d", i // bs + 1, total)
-    return torch.cat(vecs, 0)
-
-
-def retrieval_metrics(eeg_vecs, text_vecs, gt_idx, ks=(1, 5, 10)):
-    sim = eeg_vecs @ text_vecs.T
-    ranks = []
-    for i, g in enumerate(gt_idx):
-        order = torch.argsort(sim[i], descending=True)
-        rank = (order == g).nonzero(as_tuple=True)[0].item() + 1
-        ranks.append(rank)
-    r = torch.tensor(ranks, dtype=torch.float)
-    m = {f"r@{k}": float((r <= k).float().mean()) for k in ks}
-    m["mrr"] = float((1.0 / r).mean())
-    return m, r
-
-
-def grouped_metrics(eeg_vecs, text_vecs, gt_idx, meta_list, ks=(1, 5, 10)):
-    def _by(field):
-        grps = defaultdict(list)
-        for i, m in enumerate(meta_list):
-            grps[m.get(field, "unknown")].append(i)
-        out = {}
-        for gval, idxs in grps.items():
-            gm, gr = retrieval_metrics(eeg_vecs[idxs], text_vecs,
-                                       [gt_idx[i] for i in idxs], ks)
-            out[gval] = {"sample_count": len(idxs), "metrics": gm,
-                         "mean_rank": float(gr.mean()),
-                         "median_rank": float(gr.median())}
-        return out
-    return {"by_task": _by("task"), "by_subject": _by("subject"),
-            "by_dataset": _by("dataset")}
-
-
 # ── main ──────────────────────────────────────────────────────────────────
 
 def main():
@@ -293,7 +236,8 @@ def main():
     # 5. 编码文本
     logger.info("Encoding %d texts...", M)
     text_vecs = encode_texts(bart_encoder, tokenizer, unique_texts, device,
-                             bs=args.text_batch_size, logger=logger)
+                             bs=args.text_batch_size, logger=logger,
+                             log_interval=5)
     logger.info("text_vecs: %s", tuple(text_vecs.shape))
 
     # 6. 编码 EEG（三层架构实现层：在编码阶段应用噪声）

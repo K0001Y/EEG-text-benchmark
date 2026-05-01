@@ -17,7 +17,7 @@ import os
 import subprocess
 import sys
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # CUDA 版本对应的 PyTorch wheel index URL
 CUDA_INDEX_URLS = {

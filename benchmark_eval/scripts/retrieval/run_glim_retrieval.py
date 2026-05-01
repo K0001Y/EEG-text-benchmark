@@ -18,7 +18,7 @@ EEG 编码路径：
       与 GLIM 训练时完全一致，因此该检索评估最能反映模型的真实对齐能力。
 
 用法（项目根目录下）：
-  python benchmark_eval/scripts/run_glim_retrieval.py \
+  python benchmark_eval/scripts/retrieval/run_glim_retrieval.py \
       --data-path benchmark_eval/data/unified_zuco.pkl \
       --model-checkpoint models/GLIM-main/checkpoints/glim-zuco-epoch=199-step=49600.ckpt \
       --output-dir benchmark_eval/test_outputs/eval_glim_retrieval \
@@ -38,7 +38,7 @@ from torch.utils.data import DataLoader
 
 # ── 路径 ──────────────────────────────────────────────────────────────────
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-BENCH_DIR = os.path.dirname(THIS_DIR)
+BENCH_DIR = os.path.dirname(os.path.dirname(THIS_DIR))
 PROJ_ROOT = os.path.dirname(BENCH_DIR)
 
 if BENCH_DIR not in sys.path:
@@ -46,6 +46,7 @@ if BENCH_DIR not in sys.path:
 
 from data_processing.dataset import UnifiedDataset, custom_collate_fn
 from utils.logging_utils import setup_logging, get_logger
+from utils.retrieval_utils import retrieval_metrics, grouped_metrics
 from wrappers.glim_wrapper import GLIMWrapper
 
 
@@ -134,36 +135,6 @@ def encode_eegs(wrapper: GLIMWrapper, eeg_batches, mask_batches,
         if logger and (bi + 1) % 20 == 0:
             logger.info("  eeg enc %d/%d", bi + 1, total)
     return torch.cat(vecs, 0)
-
-
-def retrieval_metrics(eeg_vecs, text_vecs, gt_idx, ks=(1, 5, 10)):
-    sim = eeg_vecs @ text_vecs.T
-    ranks = []
-    for i, g in enumerate(gt_idx):
-        order = torch.argsort(sim[i], descending=True)
-        rank = (order == g).nonzero(as_tuple=True)[0].item() + 1
-        ranks.append(rank)
-    r = torch.tensor(ranks, dtype=torch.float)
-    m = {f"r@{k}": float((r <= k).float().mean()) for k in ks}
-    m["mrr"] = float((1.0 / r).mean())
-    return m, r
-
-
-def grouped_metrics(eeg_vecs, text_vecs, gt_idx, meta_list, ks=(1, 5, 10)):
-    def _by(field):
-        grps = defaultdict(list)
-        for i, m in enumerate(meta_list):
-            grps[m.get(field, "unknown")].append(i)
-        out = {}
-        for gval, idxs in grps.items():
-            gm, gr = retrieval_metrics(eeg_vecs[idxs], text_vecs,
-                                       [gt_idx[i] for i in idxs], ks)
-            out[gval] = {"sample_count": len(idxs), "metrics": gm,
-                         "mean_rank": float(gr.mean()),
-                         "median_rank": float(gr.median())}
-        return out
-    return {"by_task": _by("task"), "by_subject": _by("subject"),
-            "by_dataset": _by("dataset")}
 
 
 # ── main ──────────────────────────────────────────────────────────────────

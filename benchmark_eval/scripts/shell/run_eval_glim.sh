@@ -2,7 +2,7 @@
 
 # GLIM 模型评估脚本
 # 使用方式（在项目根目录 /root/autodl-tmp/benchmark 下）：
-#   bash benchmark_eval/scripts/run_eval_glim.sh
+#   bash benchmark_eval/scripts/shell/run_eval_glim.sh
 
 set -e
 

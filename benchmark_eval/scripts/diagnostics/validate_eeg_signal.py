@@ -15,7 +15,7 @@ A1/A3 使用 LOSO 5折CV（StratifiedGroupKFold），无被试泄露。
 纯 CPU 运行，依赖 sklearn / scipy / matplotlib。
 
 用法（项目根目录下）：
-  python benchmark_eval/scripts/validate_eeg_signal.py \
+  python benchmark_eval/scripts/diagnostics/validate_eeg_signal.py \
       --data-path benchmark_eval/data/unified_zuco.pkl
 
 详见 docs/detail/experiment_A_details.md（v3 修订版）
@@ -33,7 +33,7 @@ import numpy as np
 
 # ── 路径 ──────────────────────────────────────────────────────────────────
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-BENCH_DIR = os.path.dirname(THIS_DIR)
+BENCH_DIR = os.path.dirname(os.path.dirname(THIS_DIR))
 PROJ_ROOT = os.path.dirname(BENCH_DIR)
 
 if BENCH_DIR not in sys.path:

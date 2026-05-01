@@ -18,7 +18,7 @@
   - `test_outputs/line_b/significance_summary.json` （跨模型汇总）
 
 用法：
-  python benchmark_eval/scripts/run_significance_tests.py \
+  python benchmark_eval/scripts/analysis/run_significance_tests.py \
       --results-dir benchmark_eval/test_outputs
 """
 from __future__ import annotations
@@ -32,7 +32,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-BENCH_DIR = os.path.dirname(THIS_DIR)
+BENCH_DIR = os.path.dirname(os.path.dirname(THIS_DIR))
 if BENCH_DIR not in sys.path:
     sys.path.insert(0, BENCH_DIR)
 

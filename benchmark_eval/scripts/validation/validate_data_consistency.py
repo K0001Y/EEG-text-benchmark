@@ -13,7 +13,7 @@ import os
 import json
 
 # 添加项目路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 
 def load_unified_data(data_path: str, task: str, subject: str, sent_idx: int):

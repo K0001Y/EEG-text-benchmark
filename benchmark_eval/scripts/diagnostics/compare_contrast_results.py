@@ -10,7 +10,7 @@
   - Cohen's d 效应量
 
 用法（项目根目录下）：
-  python benchmark_eval/scripts/compare_contrast_results.py \
+  python benchmark_eval/scripts/diagnostics/compare_contrast_results.py \
       --results-dir benchmark_eval/test_outputs
 
 详见 docs/contrast_experiment_spec.md
@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-BENCH_DIR = os.path.dirname(THIS_DIR)
+BENCH_DIR = os.path.dirname(os.path.dirname(THIS_DIR))
 
 if BENCH_DIR not in sys.path:
     sys.path.insert(0, BENCH_DIR)

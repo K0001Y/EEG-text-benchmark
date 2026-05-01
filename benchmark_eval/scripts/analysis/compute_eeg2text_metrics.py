@@ -5,7 +5,7 @@ EEG2Text 离线指标计算脚本
 不依赖网络（无需下载 BERTScore 模型），使用本地实现。
 
 用法：
-    python3 benchmark_eval/scripts/compute_eeg2text_metrics.py \
+    python3 benchmark_eval/scripts/analysis/compute_eeg2text_metrics.py \
         --pred-path benchmark_eval/test_outputs/eval_eeg2text/predictions.jsonl \
         --output   benchmark_eval/test_outputs/eval_eeg2text/metrics.json
 """

@@ -10,12 +10,12 @@
 
 用法：
   # 单模型 V1/V4/V5/V6 + 跨模型 V3 + 单模型 V2 合集
-  python benchmark_eval/scripts/visualize_b_embeddings.py \
+  python benchmark_eval/scripts/analysis/visualize_b_embeddings.py \
       --results-dir benchmark_eval/test_outputs \
       --model cet_mae --viz all
 
   # 指定子集
-  python benchmark_eval/scripts/visualize_b_embeddings.py \
+  python benchmark_eval/scripts/analysis/visualize_b_embeddings.py \
       --results-dir benchmark_eval/test_outputs --viz v3
 
   # 跨模型 V3 则不需要 --model
@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-BENCH_DIR = os.path.dirname(THIS_DIR)
+BENCH_DIR = os.path.dirname(os.path.dirname(THIS_DIR))
 if BENCH_DIR not in sys.path:
     sys.path.insert(0, BENCH_DIR)
 

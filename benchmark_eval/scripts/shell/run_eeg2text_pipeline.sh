@@ -8,7 +8,7 @@
 #   Step 3 - 从 predictions.jsonl 离线计算 BLEU/ROUGE/WER 指标
 #
 # 用法（在项目根目录下执行）：
-#   bash benchmark_eval/scripts/run_eeg2text_pipeline.sh [选项]
+#   bash benchmark_eval/scripts/shell/run_eeg2text_pipeline.sh [选项]
 #
 # 选项：
 #   --skip-build     跳过 Step 1（已有 unified_zuco.pkl 时使用）
@@ -25,8 +25,8 @@ set -euo pipefail
 # 可配置路径（根据实际情况修改）
 # ============================
 
-# 自动推断项目根目录（本脚本位于 benchmark_eval/scripts/ 下）
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# 自动推断项目根目录（本脚本位于 benchmark_eval/scripts/shell/ 下）
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 # ZuCo 数据集根目录（包含 task1-SR/task2-NR/task3-TSR/task2-NR-2.0 子目录）
 ZUCO_ROOT="${PROJECT_ROOT}/models/EEG2Text-main/dataset/ZuCo"
@@ -182,7 +182,7 @@ if [[ "${SKIP_METRICS}" == "true" ]]; then
 else
     log "=== [Step 3] 计算 BLEU / ROUGE / WER 指标 ==="
 
-    python3 benchmark_eval/scripts/compute_eeg2text_metrics.py \
+    python3 benchmark_eval/scripts/analysis/compute_eeg2text_metrics.py \
         --pred-path "${OUTPUT_DIR}/predictions.jsonl" \
         --output "${OUTPUT_DIR}/metrics.json"
 
