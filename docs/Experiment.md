@@ -5,7 +5,7 @@
 3. 归一化：1D（词向量归一化），2D（词拼接句为矩阵后展平归一），spectrogram归一（整个spectrogram矩阵全局归一）
 4. 掩码生成：遮罩padding的0值
 5. 数据划分：按句子文本划分80/10/10（不同于模型论文随机划分）
-
+---
 ## A线实验（仅取130个句子）
 
 ### 实验A1
@@ -27,12 +27,33 @@ $$X_i^{\text{sent}} = \frac{\mathbf{s}_i - \text{mean}(\mathbf{s}_i)}{\max(\text
 **高斯噪声**：
 $$X_i^{\text{noise}} \sim \mathcal{N}(\mathbf{0},\ \mathbf{I}_{840}), \quad \text{seed}_i = 42 + i$$
 
-**结果**：
+###### 结果：
 | 信号组 | Top-1 | Top-5 | Top-10 | 随机基线 |
 |--------|-------|-------|--------|----------|
 | **词级 EEG** | **1.92%** (±0.42) | **8.16%** | **15.71%** | 0.77% |
 | **句级 EEG** | **1.87%** (±0.57) | **8.12%** | **15.73%** | 0.77% |
 | **高斯噪声** | 1.03% (±0.55) | 4.88% | 9.90% | 0.77% |
+
+##### 显著性：
+**Binomial 二项检验（n=1858, H₀: p=1/130=0.77%）：**
+$$p\text{-value} = P(X \ge k) = \sum_{i=k}^{n} \binom{n}{i} p_0^i (1-p_0)^{n-i}$$
+| 信号组 | 观测 Top-1 | Δvs 基线 | p 值 | 95%CI 下界 |
+|--------|-----------|----------|------|-----------|
+| **词级 EEG (A1a)** | 1.9376% | +1.1684% | **9.1 × 10⁻⁷** ★★★ | 1.44% |
+| **句级 EEG (A1a)** | 1.8837% | +1.1145% | **2.4 × 10⁻⁶** ★★★ | 1.40% |
+| 高斯噪声 (A1a) | 1.0226% | +0.2534% | 0.1333 (n.s.) | 0.67% |
+
+
+**Wilcoxon 折内配对检验（n=5）+ Holm 校正：**
+
+| 对比 | 指标 | Cohen's dz | 原始 p | Holm 校正 p_adj |
+|-----|------|------------|--------|-----------------|
+| A1a 词级 vs 噪声 | Top-1 | **0.93 (large)** | 0.1875 | 0.5625 (n.s.) |
+| A1a 词级 vs 噪声 | Top-5 | **2.77 (large)** | 0.0625 | 0.5625 (n.s.) |
+| A1a 词级 vs 噪声 | Top-10 | **2.37 (large)** | 0.0625 | 0.5625 (n.s.) |
+| A1a 句级 vs 噪声 | Top-5 | 1.63 (large) | 0.0625 | 0.5625 (n.s.) |
+| A1a 词级 vs 句级 | Top-1 | 0.08 (negligible) | 0.875 | 0.5625 (n.s.) |
+
 
 #### A1-b
 使用注视时长对每个词级别信号进行加权
@@ -52,6 +73,8 @@ $$\mathbf{f}_i^{\text{word}} = \text{flatten}\!\left(\frac{1}{T_i}\sum_{t} \text
 #### A1-d
 跨session实验（尚未实现）
 **思路**：取一个被试的所有样本，针对不同session进行分类（二分类）
+
+---
 
 ### 实验A2
 
@@ -96,13 +119,29 @@ $$\text{SS\_session}_d = \sum_{s \in \{1,2\}} n_s \left(\bar{y}_{s,d} - \bar{y}_
 
 $$\eta^2_{\text{sent},d} = \frac{\text{SS\_sent}_d}{\text{SS\_total}_d}, \quad \eta^2_{\text{subj},d} = \frac{\text{SS\_subj}_d}{\text{SS\_total}_d}, \quad \eta^2_{\text{session},d} = \frac{\text{SS\_session}_d}{\text{SS\_total}_d}$$
 
-**结果**
+##### 结果
 
 | 因素 | η² 中位数 [EEG] | η² 中位数 [噪声] |
 |------|----------------|-----------------|
 | **被试效应** | **0.4813** | 0.0152 |
 | 句子效应 | 0.0697 | 0.0695 |
 | 两者比值 | **6.9×** | 0.22× |
+
+##### 显著性 
+**η² 方差分解（n=840 维，Wilcoxon 配对检验 η²_subject vs η²_sentence）：**
+- 统计量 W=0.0，**p = 4.1 × 10⁻¹³⁹** ★★★
+- Cohen's dz = **3.05 (large)**
+- 均值差 = 0.3875，95%CI = [0.379, 0.396]
+
+**5 维 Permutation 检验（n_perm=200）：**
+
+| 特征维 | 句子效应 p | 被试效应 p |
+|--------|-----------|-----------|
+| 647 | 1.0 (n.s.) | **0.005** ★★ |
+| 368 | **0.005** ★★ | **0.005** ★★ |
+| 548 | **0.005** ★★ | **0.005** ★★ |
+| 74 | 0.97 (n.s.) | **0.005** ★★ |
+| 363 | **0.005** ★★ | **0.005** ★★ |
 
 #### A2-c 频带 η² 方差分解
 
@@ -116,6 +155,8 @@ $$\eta^2_{\text{sent},d} = \frac{\text{SS\_sent}_d}{\text{SS\_total}_d}, \quad \
 | beta2 | 0.0695 | 0.4861 | 7.0× |
 | gamma1 | 0.0645 | 0.4417 | 6.8× |
 | **gamma2** | **0.2019** | **0.5808** | **2.9×** |
+
+---
 
 ### 实验A3 去被试化验证实验
 #### A3-a
@@ -141,13 +182,22 @@ $$\tilde{X}_{i,d} = \frac{X_{i,d} - \mu_{p(i),d}^{(k)}}{\max(\sigma_{p(i),d}^{(k
 
 **步骤 3**：在归一化特征上运行 Linear Probe
 
-**结果**
+##### 结果
 
 | 实验 | Top-1 | Top-5 | Top-10 |
 |------|-------|-------|--------|
 | A1a 原始词级EEG | **1.92%** (±0.42) | **8.16%** | **15.71%** |
 | A3-LP 去被试化后 | 1.02% (±0.15) | 4.46% | 9.17% |
 | 变化 | **-0.90%** | **-3.70%** | **-6.54%** |
+
+##### 显著性
+**A3-LP vs A1a 词级（Wilcoxon 配对 n=5）：**
+
+| 指标 | mean_diff | Cohen's dz | 原始 p |
+|-----|----------|-----------|--------|
+| Top-1 | -0.90% | **-1.57 (large)** | 0.125 (n.s.) |
+| Top-5 | -3.70% | **-2.60 (large)** | 0.0625 (n.s.) |
+| Top-10 | -6.54% | **-2.89 (large)** | 0.0625 (n.s.) |
 
 #### A3-c：被试聚合检索（分组交叉验证）
 
@@ -218,6 +268,8 @@ $$\hat{\mathbf{u}}_s = \frac{\mathbf{v}^{(1)}_s}{\max(\|\mathbf{v}^{(1)}_s\|_2, 
 
 $$\mathbf{S} \in \mathbb{R}^{M \times M}, \quad S_{ij} = \hat{\mathbf{u}}_i \cdot \hat{\mathbf{v}}_j$$
 
+---
+
 ## B线实验
 使用模型的编码器对EEG信号进行编码，计算编码后的EEG向量与文本向量的相似度。进行检索
 
@@ -272,3 +324,31 @@ $$\mathbf{S} \in \mathbb{R}^{M \times M}, \quad S_{ij} = \hat{\mathbf{u}}_i \cdo
 **诊断**：**zero R@10=13.02% > real R@10=8.83%**，**zero MRR=0.0596 > real MRR=0.0492**
 
 **结论**：**模式 B + 异常** — 零输入反而更好，存在严重的文本解码器偏差。
+
+### 跨模型同噪声内 Friedman + Nemenyi CD
+（n_blocks=54, Nemenyi CD₀.₀₅=0.638）
+
+| 噪声条件 | Friedman χ² | p | Kendall W | 显著对 (Nemenyi) |
+|---------|------------|---|-----------|------------------|
+| **real** | 8.55 | **0.0359** ★ | 0.053 | 无（所有对 ΔRank < CD） |
+| **gaussian** | 45.43 | **7.5 × 10⁻¹⁰** ★★★ | 0.280 | cet_mae vs eeg2text/glim, eeg_to_text vs eeg2text/glim, eeg2text vs glim |
+| **shuffle** | 18.10 | **4.2 × 10⁻⁴** ★★★ | 0.112 | cet_mae vs eeg2text, eeg_to_text vs eeg2text |
+| **zero** | 55.18 | **6.3 × 10⁻¹²** ★★★ | 0.341 | cet_mae vs eeg2text, eeg_to_text vs eeg2text/glim, eeg2text vs glim |
+
+**核心观察**：
+- 在 **real** 条件下，模型间**无显著差异**（所有模型都接近随机），与 §2.1 的"四模型均接近随机基线"一致。
+- 在**异常输入** (gaussian/shuffle/zero) 下，Kendall W 显著升高（0.28–0.34），且 GLIM 排名跃升为最优（zero 下 avg_rank=3.31），说明模型对退化输入的响应模式**存在系统性差异**——GLIM 对零输入尤其敏感。
+
+### 模型内成对显著性（Holm 校正 α=5/n=0.0017；BH FDR 全局 α=0.05）
+
+| 模型 | BH-FDR 显著的对比 (p_adj<0.05) | 解读 |
+|------|-------------------------------|------|
+| **CET-MAE** | real_vs_gaussian MRR (p_adj=0.037), real_vs_zero MRR/MeanRank (p_adj=0.011), shuffle_vs_zero MRR (p_adj=0.020) | **real > gaussian/zero 显著**，支撑"模式 B：学到 EEG 统计特性" |
+| **EEG-To-Text** | 仅 shuffle_vs_zero MRR (p_adj=0.011) | real/gaussian/shuffle 之间**全部 n.s.**，定量确认"模式 A：编码器完全无效" |
+| **EEG2Text** | gaussian_vs_zero MeanRank (p_adj=0.048), shuffle_vs_zero R@5 (p_adj=0.048) | real 相对于任一噪声**均不显著**，支撑"模式 A：编码器未生效" |
+| **GLIM** | real_vs_gaussian MRR/MeanRank, real_vs_zero MRR/MeanRank, gaussian_vs_shuffle MRR/MeanRank, shuffle_vs_zero MRR/MeanRank（全部 p_adj=0.011） | **zero/gaussian 显著优于 real 与 shuffle**，定量确认"模式 B + 异常" |
+
+**关键结论**：
+1. **CET-MAE** 是唯一在 BH-FDR 全局校正下 `real > gaussian` 显著的模型（MRR 维度），验证了其微弱但真实的 EEG 信号利用。
+2. **EEG-To-Text / EEG2Text** 的 real 与任意噪声差异均未通过 BH-FDR，**统计证据确认编码器失效**。
+3. **GLIM** 的 `zero > real` 反常在 MRR 与 MeanRank 上均达到 p_adj=0.011 的显著水平，确认了文本解码器先验主导的架构缺陷。

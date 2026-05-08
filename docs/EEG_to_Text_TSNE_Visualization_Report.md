@@ -17,7 +17,7 @@
 
 ### 1.1 按句子 ID 着色（130 类）
 
-![t-SNE by sentence (perplexity=30)](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/line_a/dataset_validity/tsne_by_sentence_p30.png)
+![t-SNE by sentence (perplexity=30)](../benchmark_eval/test_outputs/line_a/dataset_validity/tsne_by_sentence_p30.png)
 
 **读图要点**：
 - 若 EEG 句级特征在无监督降维空间中自发聚成 130 个句子簇，则说明信号可直接分离。
@@ -25,7 +25,7 @@
 
 ### 1.2 按阅读 session 着色（Session 1 / Session 2）
 
-![t-SNE by session (perplexity=30)](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/line_a/dataset_validity/tsne_by_session_p30.png)
+![t-SNE by session (perplexity=30)](../benchmark_eval/test_outputs/line_a/dataset_validity/tsne_by_session_p30.png)
 
 **读图要点**：
 - ZuCo 每被试分两个 session 录制，若存在电极漂移则 session 会在 t-SNE 上分离。
@@ -34,13 +34,13 @@
 ### 1.3 按被试 ID 着色（30 被试）— 三个 perplexity 稳健性对照
 
 **perplexity = 5**  
-![t-SNE by subject (perplexity=5)](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/line_a/dataset_validity/tsne_by_subject_p5.png)
+![t-SNE by subject (perplexity=5)](../benchmark_eval/test_outputs/line_a/dataset_validity/tsne_by_subject_p5.png)
 
 **perplexity = 30（默认）**  
-![t-SNE by subject (perplexity=30)](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/line_a/dataset_validity/tsne_by_subject_p30.png)
+![t-SNE by subject (perplexity=30)](../benchmark_eval/test_outputs/line_a/dataset_validity/tsne_by_subject_p30.png)
 
 **perplexity = 50**  
-![t-SNE by subject (perplexity=50)](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/line_a/dataset_validity/tsne_by_subject_p50.png)
+![t-SNE by subject (perplexity=50)](../benchmark_eval/test_outputs/line_a/dataset_validity/tsne_by_subject_p50.png)
 
 **读图要点**：
 - 在三个 perplexity 下，同一被试的样本均稳定聚成**紧致簇**，30 个被试间界限清晰。
@@ -49,7 +49,7 @@
 
 ### 1.4 按阅读任务着色（Task1-SR / Task2-NR / Task3-TSR / Task2-NR-2.0）
 
-![t-SNE by task (perplexity=30)](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/line_a/dataset_validity/tsne_by_task_p30.png)
+![t-SNE by task (perplexity=30)](../benchmark_eval/test_outputs/line_a/dataset_validity/tsne_by_task_p30.png)
 
 **读图要点**：
 - 同一被试跨任务样本基本聚在一起，任务差异被被试效应淹没。
@@ -79,28 +79,28 @@
 ### 2.1 CET-MAE（模式 B：学到 EEG 统计特性）
 
 **by_dataset**  
-![CET-MAE t-SNE by dataset](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_by_dataset_p30.png)
+![CET-MAE t-SNE by dataset](../benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_by_dataset_p30.png)
 
 **by_subject**  
-![CET-MAE t-SNE by subject](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_by_subject_p30.png)
+![CET-MAE t-SNE by subject](../benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_by_subject_p30.png)
 
 **by_task**  
-![CET-MAE t-SNE by task](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_by_task_p30.png)
+![CET-MAE t-SNE by task](../benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_by_task_p30.png)
 
 **cross_modal（EEG vs Text）**  
-![CET-MAE cross-modal](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_cross_modal_p30.png)
+![CET-MAE cross-modal](../benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_cross_modal_p30.png)
 
 **four_conditions**  
-![CET-MAE four conditions](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_four_conditions_p30.png)
+![CET-MAE four conditions](../benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_four_conditions_p30.png)
 
 **shuffle_diag_by_cond**  
-![CET-MAE shuffle diag by cond](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_shuffle_diag_by_cond_p30.png)
+![CET-MAE shuffle diag by cond](../benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_shuffle_diag_by_cond_p30.png)
 
 **shuffle_diag_by_gt**  
-![CET-MAE shuffle diag by GT](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_shuffle_diag_by_gt_p30.png)
+![CET-MAE shuffle diag by GT](../benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_shuffle_diag_by_gt_p30.png)
 
 **zero_response**  
-![CET-MAE zero response](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_zero_response_p30.png)
+![CET-MAE zero response](../benchmark_eval/test_outputs/tsne_b/tsne_cet_mae_zero_response_p30.png)
 
 **读图要点**：
 - `four_conditions` 中 real 与 gaussian/zero 的点云质心存在可见偏移，视觉上呼应 BH-FDR 校正下 `real_vs_gaussian MRR p_adj=0.037★`、`real_vs_zero MRR p_adj=0.011★`。
@@ -110,28 +110,28 @@
 ### 2.2 EEG-To-Text（模式 A：编码器完全无效）
 
 **by_dataset**  
-![EEG-To-Text t-SNE by dataset](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_by_dataset_p30.png)
+![EEG-To-Text t-SNE by dataset](../benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_by_dataset_p30.png)
 
 **by_subject**  
-![EEG-To-Text t-SNE by subject](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_by_subject_p30.png)
+![EEG-To-Text t-SNE by subject](../benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_by_subject_p30.png)
 
 **by_task**  
-![EEG-To-Text t-SNE by task](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_by_task_p30.png)
+![EEG-To-Text t-SNE by task](../benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_by_task_p30.png)
 
 **cross_modal**  
-![EEG-To-Text cross-modal](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_cross_modal_p30.png)
+![EEG-To-Text cross-modal](../benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_cross_modal_p30.png)
 
 **four_conditions**  
-![EEG-To-Text four conditions](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_four_conditions_p30.png)
+![EEG-To-Text four conditions](../benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_four_conditions_p30.png)
 
 **shuffle_diag_by_cond**  
-![EEG-To-Text shuffle diag by cond](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_shuffle_diag_by_cond_p30.png)
+![EEG-To-Text shuffle diag by cond](../benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_shuffle_diag_by_cond_p30.png)
 
 **shuffle_diag_by_gt**  
-![EEG-To-Text shuffle diag by GT](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_shuffle_diag_by_gt_p30.png)
+![EEG-To-Text shuffle diag by GT](../benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_shuffle_diag_by_gt_p30.png)
 
 **zero_response**  
-![EEG-To-Text zero response](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_zero_response_p30.png)
+![EEG-To-Text zero response](../benchmark_eval/test_outputs/tsne_b/tsne_eeg_to_text_zero_response_p30.png)
 
 **读图要点**：
 - `four_conditions` 中四种条件点云**高度重叠、无可识别差异**，是 §4.4.3 中"real 对任意噪声全部 n.s."的直观图像证据。
@@ -140,28 +140,28 @@
 ### 2.3 EEG2Text（模式 A：编码器未生效）
 
 **by_dataset**  
-![EEG2Text t-SNE by dataset](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_by_dataset_p30.png)
+![EEG2Text t-SNE by dataset](../benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_by_dataset_p30.png)
 
 **by_subject**  
-![EEG2Text t-SNE by subject](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_by_subject_p30.png)
+![EEG2Text t-SNE by subject](../benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_by_subject_p30.png)
 
 **by_task**  
-![EEG2Text t-SNE by task](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_by_task_p30.png)
+![EEG2Text t-SNE by task](../benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_by_task_p30.png)
 
 **cross_modal**  
-![EEG2Text cross-modal](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_cross_modal_p30.png)
+![EEG2Text cross-modal](../benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_cross_modal_p30.png)
 
 **four_conditions**  
-![EEG2Text four conditions](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_four_conditions_p30.png)
+![EEG2Text four conditions](../benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_four_conditions_p30.png)
 
 **shuffle_diag_by_cond**  
-![EEG2Text shuffle diag by cond](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_shuffle_diag_by_cond_p30.png)
+![EEG2Text shuffle diag by cond](../benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_shuffle_diag_by_cond_p30.png)
 
 **shuffle_diag_by_gt**  
-![EEG2Text shuffle diag by GT](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_shuffle_diag_by_gt_p30.png)
+![EEG2Text shuffle diag by GT](../benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_shuffle_diag_by_gt_p30.png)
 
 **zero_response**  
-![EEG2Text zero response](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_zero_response_p30.png)
+![EEG2Text zero response](../benchmark_eval/test_outputs/tsne_b/tsne_eeg2text_zero_response_p30.png)
 
 **读图要点**：
 - `by_subject` 仍显示被试簇结构，说明即便采用原始时序输入 `(24000, 105)`，被试效应仍传递到嵌入空间。
@@ -170,28 +170,28 @@
 ### 2.4 GLIM（模式 B + 异常：zero > real）
 
 **by_dataset**  
-![GLIM t-SNE by dataset](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_glim_by_dataset_p30.png)
+![GLIM t-SNE by dataset](../benchmark_eval/test_outputs/tsne_b/tsne_glim_by_dataset_p30.png)
 
 **by_subject**  
-![GLIM t-SNE by subject](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_glim_by_subject_p30.png)
+![GLIM t-SNE by subject](../benchmark_eval/test_outputs/tsne_b/tsne_glim_by_subject_p30.png)
 
 **by_task**  
-![GLIM t-SNE by task](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_glim_by_task_p30.png)
+![GLIM t-SNE by task](../benchmark_eval/test_outputs/tsne_b/tsne_glim_by_task_p30.png)
 
 **cross_modal**  
-![GLIM cross-modal](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_glim_cross_modal_p30.png)
+![GLIM cross-modal](../benchmark_eval/test_outputs/tsne_b/tsne_glim_cross_modal_p30.png)
 
 **four_conditions**  
-![GLIM four conditions](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_glim_four_conditions_p30.png)
+![GLIM four conditions](../benchmark_eval/test_outputs/tsne_b/tsne_glim_four_conditions_p30.png)
 
 **shuffle_diag_by_cond**  
-![GLIM shuffle diag by cond](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_glim_shuffle_diag_by_cond_p30.png)
+![GLIM shuffle diag by cond](../benchmark_eval/test_outputs/tsne_b/tsne_glim_shuffle_diag_by_cond_p30.png)
 
 **shuffle_diag_by_gt**  
-![GLIM shuffle diag by GT](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_glim_shuffle_diag_by_gt_p30.png)
+![GLIM shuffle diag by GT](../benchmark_eval/test_outputs/tsne_b/tsne_glim_shuffle_diag_by_gt_p30.png)
 
 **zero_response**  
-![GLIM zero response](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_glim_zero_response_p30.png)
+![GLIM zero response](../benchmark_eval/test_outputs/tsne_b/tsne_glim_zero_response_p30.png)
 
 **读图要点**：
 - `four_conditions` 中 zero 云显著偏离 real/shuffle，且位置更接近 text 嵌入的文本先验中心——这是 §4.2.4 中 `zero R@10=13.02% > real R@10=8.83%` 异常的可视化解释。
@@ -200,7 +200,7 @@
 
 ### 2.5 跨模型对比（real 条件）
 
-![Cross-model real](/root/autodl-tmp/benchmark/benchmark_eval/test_outputs/tsne_b/tsne_cross_model_real_p30.png)
+![Cross-model real](../benchmark_eval/test_outputs/tsne_b/tsne_cross_model_real_p30.png)
 
 **读图要点**：
 - 四个模型在 real 条件下的 EEG 嵌入占据 t-SNE 空间的不同区域，形态各异但共同特点是 EEG 云与 Text 云分离——跨模态对齐均未建立。
