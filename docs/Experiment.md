@@ -17,11 +17,12 @@
 词级别池化信号vs原始句子级信号vs噪声
 
 三组信号的特征矩阵 $X \in \mathbb{R}^{N \times 840}$ 分别构造如下：
-
+（显著性）
 **词级 EEG**：（平均池化）
 $$X_i^{\text{word}} = \frac{1}{T_i}\sum_{t=1}^{T_i} \text{eeg\_word\_norm1d}_{i,t,:}$$
 
 **句级 EEG**：
+（降维可视化）图
 $$X_i^{\text{sent}} = \frac{\mathbf{s}_i - \text{mean}(\mathbf{s}_i)}{\max(\text{std}(\mathbf{s}_i),\ 10^{-8})}, \quad \mathbf{s}_i = \text{sent\_eeg\_raw}_i$$
 
 **高斯噪声**：
@@ -171,8 +172,6 @@ $$\mu_{p,d}^{(k)} = \frac{1}{|\mathcal{I}_p^{(k)}|} \sum_{i \in \mathcal{I}_p^{(
 
 $$\sigma_{p,d}^{(k)} = \sqrt{\frac{1}{|\mathcal{I}_p^{(k)}|} \sum_{i \in \mathcal{I}_p^{(k)}} (X_{i,d} - \mu_{p,d}^{(k)})^2}$$
 
-> **注**：统计量仅在 train fold 内计算，测试 fold 中被试的统计量不参与 fit，避免泄露。
-
 **步骤 2**：对 train/test fold 分别应用 per-subject z-score 归一化
 
 $$\tilde{X}_{i,d} = \frac{X_{i,d} - \mu_{p(i),d}^{(k)}}{\max(\sigma_{p(i),d}^{(k)},\ 10^{-8})}$$
@@ -222,7 +221,7 @@ $$\mathbf{v}^B_s = \frac{1}{|\{i : \text{subj}[i] \in B, \text{sent}[i]=s\}|} \s
 $$\hat{\mathbf{u}}_s = \frac{\mathbf{v}^A_s}{\max(\|\mathbf{v}^A_s\|_2, 10^{-8})}, \quad \hat{\mathbf{v}}_s = \frac{\mathbf{v}^B_s}{\max(\|\mathbf{v}^B_s\|_2, 10^{-8})}$$
 
 **步骤 4**：余弦相似度矩阵
-
+（降维K近邻）
 $$\mathbf{S} \in \mathbb{R}^{M \times M}, \quad S_{ij} = \hat{\mathbf{u}}_i \cdot \hat{\mathbf{v}}_j$$
 
 **步骤 5**：检索排名
@@ -298,6 +297,8 @@ $$\mathbf{S} \in \mathbb{R}^{M \times M}, \quad S_{ij} = \hat{\mathbf{u}}_i \cdo
 **诊断**：所有条件差异 < 0.001
 
 **结论**：**模式 A** — 编码器完全无效，未从 EEG 学到任何信息。
+（p值显著）
+（降维可视化）
 
 ### b3 EEG2Text
 
