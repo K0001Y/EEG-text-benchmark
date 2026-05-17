@@ -57,8 +57,9 @@ PAIR_ORDER = (
     ("shuffle", "zero"),
 )
 METRICS_FOR_CORRECTION = ("r@1", "r@5", "r@10", "mrr", "mean_rank")
-# 文档定义的多重校正：72 组全局 = 6 对 × 3 指标 × 4 模型
-N_GLOBAL_TESTS = 72
+# 全局多重校正：len(MODELS) × len(PAIR_ORDER) × len(METRICS_FOR_CORRECTION)
+# = 4 × 6 × 5 = 120
+N_GLOBAL_TESTS = len(MODELS) * len(PAIR_ORDER) * len(METRICS_FOR_CORRECTION)
 
 
 def parse_args():
@@ -97,30 +98,47 @@ def _load_model_embeddings(results_dir: str, model: str) -> Dict[str, Dict[str, 
 def _align_ranks_by_query(
     emb_by_noise: Dict[str, Dict[str, Any]],
     key_fields: Tuple[str, ...] = ("subjects", "sentence_ids", "tasks"),
-) -> Tuple[List[str], Dict[str, np.ndarray]]:
-    """在多个 noise 条件间按 (subject, sentence, task) 对齐 query，保证严格配对。
+) -> Tuple[List[Tuple[str, ...]], Dict[str, np.ndarray]]:
+    """在多个 noise 条件间按行位置对齐 query，保留所有重复样本，保证严格配对。
+
+    前提：同一模型在 4 种 noise 条件下由 UnifiedDataset 同序生成，embeddings.npz
+    的行顺序与 (subject, sentence_id, task) + row_idx 完全一致。本函数对此前提
+    进行强校验；若不一致则抛出 AssertionError。
+
+    历史 Bug（2026-05 修复 / S-1）：旧实现使用 `set(keys)` 做交集去重，导致
+    1858 条样本被坍缩到 54 个唯一三元组，配对检验功效损失约 97%。新实现改为
+    按行索引对齐，保留全部 1858 条样本。
 
     Returns:
-        query_keys: 共有 query 的顺序键列表
-        ranks_by_noise: {noise: aligned_ranks (N_common,)}
+        query_keys: 每行的 (subject, sentence_id, task) + row_idx 键（长度 N）
+        ranks_by_noise: {noise: aligned_ranks (N,)}
     """
     def _make_keys(payload):
         parts = [np.asarray(payload[f], dtype=object).tolist() for f in key_fields]
         return [tuple(str(x) for x in row) for row in zip(*parts)]
 
-    keys_per_noise = {n: _make_keys(emb_by_noise[n]) for n in emb_by_noise}
-    # 交集
-    common_keys = set(keys_per_noise[next(iter(keys_per_noise))])
-    for n in keys_per_noise:
-        common_keys &= set(keys_per_noise[n])
-    # 排序保证可复现
-    common_keys_sorted = sorted(common_keys)
+    noise_list = list(emb_by_noise.keys())
+    keys_per_noise = {n: _make_keys(emb_by_noise[n]) for n in noise_list}
+    ref_noise = noise_list[0]
+    ref_keys = keys_per_noise[ref_noise]
+    N = len(ref_keys)
+
+    # 强校验：所有 noise 行数一致且键序列完全相同
+    for n in noise_list[1:]:
+        assert len(keys_per_noise[n]) == N, (
+            f"row count mismatch: {ref_noise}={N} vs {n}={len(keys_per_noise[n])}"
+        )
+        assert keys_per_noise[n] == ref_keys, (
+            f"row order mismatch between noise='{ref_noise}' and noise='{n}'; "
+            "UnifiedDataset 生成顺序不一致，需排查采样逻辑。"
+        )
+
+    # 行内位置当作第四个键以区分 (subject, sent_id, task) 三元组下的重复样本
+    augmented_keys = [k + (str(i),) for i, k in enumerate(ref_keys)]
     out: Dict[str, np.ndarray] = {}
-    for n in keys_per_noise:
-        key_to_pos = {k: i for i, k in enumerate(keys_per_noise[n])}
-        idxs = [key_to_pos[k] for k in common_keys_sorted]
-        out[n] = np.asarray(emb_by_noise[n]["ranks"], dtype=np.int64)[idxs]
-    return common_keys_sorted, out
+    for n in noise_list:
+        out[n] = np.asarray(emb_by_noise[n]["ranks"], dtype=np.int64)
+    return augmented_keys, out
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -246,7 +264,8 @@ def _cross_model_friedman(
     if len(all_model_data) < 2:
         return {"error": "fewer_than_2_models"}
 
-    # 从每个模型中提取指定 noise 的 ranks，按 (subject, sentence, task) 对齐
+    # 跨模型按行位置对齐：UnifiedDataset 测试集顺序在所有模型间一致
+    # 历史 Bug（2026-05 修复 / S-1）：旧实现用 set 去重导致 1858 → 54。
     def _keys(payload, fields=("subjects", "sentence_ids", "tasks")):
         parts = [np.asarray(payload[f], dtype=object).tolist() for f in fields]
         return [tuple(str(x) for x in row) for row in zip(*parts)]
@@ -263,27 +282,52 @@ def _cross_model_friedman(
     if len(model_keys) < 2:
         return {"error": f"noise_{noise}_missing_in_most_models"}
 
-    # 交集
-    common_keys = set(model_keys[next(iter(model_keys))])
-    for m in model_keys:
-        common_keys &= set(model_keys[m])
-    if len(common_keys) < 2:
-        return {"error": "no_common_queries", "n_common": len(common_keys)}
-    common_keys_sorted = sorted(common_keys)
-
-    # 对齐矩阵 (n_queries, n_models)
+    # 强校验：所有模型行数一致且键序列完全相同
     models_ordered = list(model_keys.keys())
-    matrix = np.zeros((len(common_keys_sorted), len(models_ordered)), dtype=np.float64)
-    for j, m in enumerate(models_ordered):
-        key_to_pos = {k: i for i, k in enumerate(model_keys[m])}
-        idxs = [key_to_pos[k] for k in common_keys_sorted]
-        matrix[:, j] = model_ranks[m][idxs]
+    ref_model = models_ordered[0]
+    ref_keys = model_keys[ref_model]
+    N = len(ref_keys)
+    order_ok = True
+    for m in models_ordered[1:]:
+        if len(model_keys[m]) != N or model_keys[m] != ref_keys:
+            order_ok = False
+            break
+
+    if order_ok:
+        matrix = np.zeros((N, len(models_ordered)), dtype=np.float64)
+        for j, m in enumerate(models_ordered):
+            matrix[:, j] = model_ranks[m]
+        n_common = N
+    else:
+        # 退化路径：按三元组 + 组内出现顺序的完整键对齐，仍保留重复样本
+        def _augment(keys: List[Tuple[str, ...]]) -> List[Tuple[str, ...]]:
+            cnt: Dict[Tuple[str, ...], int] = {}
+            out: List[Tuple[str, ...]] = []
+            for k in keys:
+                i = cnt.get(k, 0)
+                out.append(k + (str(i),))
+                cnt[k] = i + 1
+            return out
+
+        aug = {m: _augment(model_keys[m]) for m in models_ordered}
+        common_keys = set(aug[ref_model])
+        for m in models_ordered[1:]:
+            common_keys &= set(aug[m])
+        if len(common_keys) < 2:
+            return {"error": "no_common_queries", "n_common": len(common_keys)}
+        common_keys_sorted = sorted(common_keys)
+        matrix = np.zeros((len(common_keys_sorted), len(models_ordered)), dtype=np.float64)
+        for j, m in enumerate(models_ordered):
+            key_to_pos = {k: i for i, k in enumerate(aug[m])}
+            idxs = [key_to_pos[k] for k in common_keys_sorted]
+            matrix[:, j] = model_ranks[m][idxs]
+        n_common = len(common_keys_sorted)
 
     logger.info("  Friedman[noise=%s]: shape=%s models=%s",
                 noise, matrix.shape, models_ordered)
     fr = friedman_nemenyi(matrix, group_names=models_ordered)
     fr["noise"] = noise
-    fr["n_common_queries"] = len(common_keys_sorted)
+    fr["n_common_queries"] = int(n_common)
     return fr
 
 
