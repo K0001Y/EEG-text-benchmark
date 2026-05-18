@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>论文架构演进重组工具 v2</title>
+    <!-- 引入 Tailwind CSS 以实现快速布局和美观的样式 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 自定义滚动条样式 */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* 拖拽项的光标状态 */
+        .drag-item { cursor: grab; user-select: none; }
+        .drag-item:active { cursor: grabbing; }
+        .drag-item.dragging { opacity: 0.5; transform: scale(0.95); }
+
+        /* 目标区域被悬停时的视觉反馈 */
+        .drop-zone { transition: all 0.2s ease; }
+        .drop-zone.drag-over {
+            background-color: #f8fafc;
+            border-color: #6366f1;
+            box-shadow: inset 0 0 10px rgba(99, 102, 241, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 h-screen overflow-hidden flex">
+
+    <!-- ======================================================== -->
+    <!-- 左侧：原子化零件库 (Source)                                 -->
+    <!-- ======================================================== -->
+    <aside class="w-1/3 p-5 border-r border-slate-200 bg-white overflow-y-auto shadow-sm z-10 custom-scrollbar flex flex-col">
+        <h2 class="text-xl font-extrabold mb-4 text-slate-800 border-b-2 border-slate-100 pb-3 flex items-center gap-2 sticky top-0 bg-white z-20">
+            <span>🧩</span> 原子零件库 (Atomic Inventory)
+        </h2>
+
+        <!-- 模块 1: 信号模态 -->
+        <div class="mb-5">
+            <h3 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">1. 信号模态 (Modalities)</h3>
+            <div class="drop-zone flex flex-wrap gap-2 min-h-[30px] p-1 -m-1 border border-transparent rounded" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                <span id="mod-eeg" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs hover:bg-slate-100 shadow-sm transition">EEG 信号</span>
+                <span id="mod-meg" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs hover:bg-slate-100 shadow-sm transition">MEG 信号</span>
+                <span id="mod-fmri" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs hover:bg-slate-100 shadow-sm transition">fMRI 信号</span>
+                <span id="mod-tradeoff" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs hover:bg-slate-100 shadow-sm transition">时空权衡对比</span>
+            </div>
+        </div>
+
+        <!-- 模块 2: 解码粒度 -->
+        <div class="mb-5">
+            <h3 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">2. 解码粒度 (Granularity)</h3>
+            <div class="drop-zone flex flex-wrap gap-2 min-h-[30px] p-1 -m-1 border border-transparent rounded" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                <span id="gran-word" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-slate-100 border border-slate-300 rounded text-xs text-slate-700 hover:bg-slate-200 shadow-sm transition">词级解码</span>
+                <span id="gran-sent" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-slate-100 border border-slate-300 rounded text-xs text-slate-700 hover:bg-slate-200 shadow-sm transition">句子级解码</span>
+                <span id="gran-sem" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-slate-100 border border-slate-300 rounded text-xs text-slate-700 hover:bg-slate-200 shadow-sm transition">语义级解码</span>
+            </div>
+        </div>
+
+        <!-- 模块 3: 神经编码器 -->
+        <div class="mb-5">
+            <h3 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">3. 神经编码器 (Encoders)</h3>
+            <div class="drop-zone flex flex-wrap gap-2 min-h-[30px] p-1 -m-1 border border-transparent rounded" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                <span id="enc-cnn" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-700 hover:bg-indigo-100 shadow-sm transition">CNN 编码器</span>
+                <span id="enc-rnn" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-700 hover:bg-indigo-100 shadow-sm transition">RNN 编码器</span>
+                <span id="enc-trans" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-700 hover:bg-indigo-100 shadow-sm transition">Transformer 编码器</span>
+                <span id="enc-vq" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-700 hover:bg-indigo-100 shadow-sm transition">离散化编码器 (VQ-VAE)</span>
+            </div>
+        </div>
+
+        <!-- 模块 4: 跨模态对齐 -->
+        <div class="mb-5">
+            <h3 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">4. 跨模态对齐 (Alignment)</h3>
+            <div class="drop-zone flex flex-wrap gap-2 min-h-[30px] p-1 -m-1 border border-transparent rounded" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                <span id="al-imp" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800 hover:bg-blue-100 shadow-sm transition">隐式映射</span>
+                <span id="al-con" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800 hover:bg-blue-100 shadow-sm transition">对比对齐 (CLIP/InfoNCE)</span>
+                <span id="al-inv" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800 hover:bg-blue-100 shadow-sm transition">编码模型反演</span>
+                <span id="al-jls" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800 hover:bg-blue-100 shadow-sm transition">联合潜空间</span>
+                <span id="al-dyn" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800 hover:bg-blue-100 shadow-sm transition">动态表征对齐</span>
+            </div>
+        </div>
+
+        <!-- 模块 5: 对齐前优化 -->
+        <div class="mb-5">
+            <h3 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">5. 对齐前优化 (Pre-alignment)</h3>
+            <div class="drop-zone flex flex-wrap gap-2 min-h-[30px] p-1 -m-1 border border-transparent rounded" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                <span id="pre-mae" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-sky-50 border border-sky-300 rounded text-xs text-sky-900 hover:bg-sky-100 shadow-sm transition font-medium">掩码建模 (MAE)</span>
+                <span id="pre-fus" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-sky-50 border border-sky-300 rounded text-xs text-sky-900 hover:bg-sky-100 shadow-sm transition font-medium">多模态融合</span>
+                <span id="pre-hier" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-sky-50 border border-sky-300 rounded text-xs text-sky-900 hover:bg-sky-100 shadow-sm transition font-medium">多级别层次化</span>
+            </div>
+        </div>
+
+        <!-- 模块 6: 对齐后微调 -->
+        <div class="mb-5">
+            <h3 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">6. 对齐后微调 (Post-alignment)</h3>
+            <div class="drop-zone flex flex-wrap gap-2 min-h-[30px] p-1 -m-1 border border-transparent rounded" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                <span id="post-llm" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-cyan-50 border border-cyan-300 rounded text-xs text-cyan-900 hover:bg-cyan-100 shadow-sm transition font-medium">LLM 提示与微调 (LoRA)</span>
+                <span id="post-cur" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-cyan-50 border border-cyan-300 rounded text-xs text-cyan-900 hover:bg-cyan-100 shadow-sm transition font-medium">课程式学习</span>
+                <span id="post-beam" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-cyan-50 border border-cyan-300 rounded text-xs text-cyan-900 hover:bg-cyan-100 shadow-sm transition font-medium">束搜索与 LM 打分</span>
+            </div>
+        </div>
+
+        <!-- 模块 7: 文本生成范式 -->
+        <div class="mb-5">
+            <h3 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">7. 文本生成范式 (Generation)</h3>
+            <div class="drop-zone flex flex-wrap gap-2 min-h-[30px] p-1 -m-1 border border-transparent rounded" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                <span id="gen-encdec" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800 hover:bg-emerald-100 shadow-sm transition">预训练 Enc-Dec (BART/T5)</span>
+                <span id="gen-ar" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800 hover:bg-emerald-100 shadow-sm transition">Decoder-only LLM 自回归</span>
+                <span id="gen-asr" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800 hover:bg-emerald-100 shadow-sm transition">ASR 中介模态 (Whisper)</span>
+                <span id="gen-ret" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800 hover:bg-emerald-100 shadow-sm transition">检索与受限打分解码</span>
+            </div>
+        </div>
+
+        <!-- 模块 8: 数据集 -->
+        <div class="mb-5">
+            <h3 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">8. 数据集 (Datasets)</h3>
+            <div class="drop-zone flex flex-wrap gap-2 min-h-[30px] p-1 -m-1 border border-transparent rounded" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                <span id="ds-zuco1" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 hover:bg-amber-100 shadow-sm transition">ZuCo v1.0</span>
+                <span id="ds-zuco2" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 hover:bg-amber-100 shadow-sm transition">ZuCo 2.0</span>
+                <span id="ds-cneeg" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 hover:bg-amber-100 shadow-sm transition">ChineseEEG</span>
+                <span id="ds-cneeg2" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 hover:bg-amber-100 shadow-sm transition">ChineseEEG-2</span>
+                <span id="ds-mmasc" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 hover:bg-amber-100 shadow-sm transition">MEG-MASC</span>
+                <span id="ds-mmous" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 hover:bg-amber-100 shadow-sm transition">MEG-MOUS</span>
+                <span id="ds-smn4" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 hover:bg-amber-100 shadow-sm transition">SMN4Lang</span>
+                <span id="ds-narmeg" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 hover:bg-amber-100 shadow-sm transition">Narrative MEG</span>
+                <span id="ds-pereira" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 hover:bg-amber-100 shadow-sm transition">Pereira 2018</span>
+                <span id="ds-narrf" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 hover:bg-amber-100 shadow-sm transition">Narratives fMRI</span>
+                <span id="ds-lebel" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 hover:bg-amber-100 shadow-sm transition">LeBel 2023</span>
+                <span id="ds-cnstory" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 hover:bg-amber-100 shadow-sm transition">Chinese-Story-fMRI</span>
+                <span id="ds-short" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-amber-100 border border-amber-300 rounded text-xs text-amber-900 hover:bg-amber-200 shadow-sm transition font-bold">数据集共性缺陷</span>
+            </div>
+        </div>
+
+        <!-- 模块 9: 评估指标 -->
+        <div class="mb-5">
+            <h3 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">9. 评估指标 (Metrics)</h3>
+            <div class="drop-zone flex flex-wrap gap-2 min-h-[30px] p-1 -m-1 border border-transparent rounded" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                <span id="met-bleu" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-violet-50 border border-violet-200 rounded text-xs text-violet-800 hover:bg-violet-100 shadow-sm transition">BLEU / ROUGE</span>
+                <span id="met-wer" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-violet-50 border border-violet-200 rounded text-xs text-violet-800 hover:bg-violet-100 shadow-sm transition">WER / METEOR</span>
+                <span id="met-nist" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-violet-50 border border-violet-200 rounded text-xs text-violet-800 hover:bg-violet-100 shadow-sm transition">NIST / TER</span>
+                <span id="met-bert" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-violet-50 border border-violet-200 rounded text-xs text-violet-800 hover:bg-violet-100 shadow-sm transition">BERTScore / BLEURT</span>
+                <span id="met-lit" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-violet-100 border border-violet-300 rounded text-xs text-violet-900 hover:bg-violet-200 shadow-sm transition font-bold">字面匹配局限</span>
+                <span id="met-probe" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-violet-100 border border-violet-300 rounded text-xs text-violet-900 hover:bg-violet-200 shadow-sm transition font-bold">Linear Probe 探测</span>
+                <span id="met-anova" draggable="true" ondragstart="drag(event)" class="drag-item px-2.5 py-1.5 bg-violet-100 border border-violet-300 rounded text-xs text-violet-900 hover:bg-violet-200 shadow-sm transition font-bold">双向 ANOVA 方差分解</span>
+            </div>
+        </div>
+
+        <!-- 模块 10: 挑战与缺陷 -->
+        <div class="mb-10">
+            <h3 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">10. 挑战与缺陷 (Pitfalls & Gaps)</h3>
+            <div class="drop-zone flex flex-col gap-2 min-h-[50px] p-1 -m-1 border border-transparent rounded" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                <span id="pit-phy" draggable="true" ondragstart="drag(event)" class="drag-item px-3 py-1.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 hover:bg-rose-100 shadow-sm transition">物理采集限制 (EEG衰减/fMRI延迟)</span>
+                <span id="pit-snr" draggable="true" ondragstart="drag(event)" class="drag-item px-3 py-1.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 hover:bg-rose-100 shadow-sm transition">极低信噪比与多源生理伪影</span>
+                <span id="pit-het" draggable="true" ondragstart="drag(event)" class="drag-item px-3 py-1.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 hover:bg-rose-100 shadow-sm transition">跨被试解剖与认知异质性</span>
+                <span id="pit-mis" draggable="true" ondragstart="drag(event)" class="drag-item px-3 py-1.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 hover:bg-rose-100 shadow-sm transition">脑动态与语言模态错配</span>
+                <span id="pit-met" draggable="true" ondragstart="drag(event)" class="drag-item px-3 py-1.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 hover:bg-rose-100 shadow-sm transition font-bold">词汇指标过度依赖 &amp; 语义评估缺失</span>
+                <span id="pit-eye" draggable="true" ondragstart="drag(event)" class="drag-item px-3 py-1.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 hover:bg-rose-100 shadow-sm transition font-bold">眼动信号的静态对齐局限</span>
+                <span id="pit-pre" draggable="true" ondragstart="drag(event)" class="drag-item px-3 py-1.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 hover:bg-rose-100 shadow-sm transition">预处理管线不通用</span>
+                <span id="pit-llm" draggable="true" ondragstart="drag(event)" class="drag-item px-3 py-1.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 hover:bg-rose-100 shadow-sm transition font-bold">大模型先验直接集成的危险</span>
+                <span id="pit-tf" draggable="true" ondragstart="drag(event)" class="drag-item px-3 py-1.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 hover:bg-rose-100 shadow-sm transition font-bold">自回归隐式教师强制危险</span>
+                <span id="pit-zh" draggable="true" ondragstart="drag(event)" class="drag-item px-3 py-1.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 hover:bg-rose-100 shadow-sm transition">表意文字 (中文) 专属架构缺失</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 右侧：目标演进架 (Target Layout) -->
+    <main class="w-2/3 p-8 bg-slate-50 overflow-y-auto h-full custom-scrollbar">
+        <h2 class="text-2xl font-extrabold mb-8 text-slate-800 tracking-tight flex items-center justify-between">
+            <span>🧠 论文架构演进视图 (The Narrative Scaffold)</span>
+            <span class="text-xs font-normal text-slate-500 bg-slate-200 px-3 py-1 rounded-full">直接将左侧卡片拖入对应虚线框内</span>
+        </h2>
+
+        <div class="space-y-8 pb-10">
+
+            <!-- Section 1 & 2 -->
+            <section class="pb-4 border-b border-slate-200">
+                <h3 class="font-bold text-lg text-slate-700">1. 引言 (Introduction)</h3>
+                <h3 class="font-bold text-lg text-slate-700 mt-2">2. 范围与任务定义 (Scope and task definitions)</h3>
+                <!-- Drop Zone -->
+                <div class="drop-zone min-h-[60px] mt-3 bg-white border-2 border-dashed border-slate-300 rounded-lg p-3 flex flex-wrap gap-2 transition-colors" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                    <!-- 此处接收零件 -->
+                </div>
+            </section>
+
+            <!-- Section 3 -->
+            <section class="bg-white shadow-sm border border-slate-200 rounded-xl overflow-hidden">
+                <div class="bg-indigo-50 px-5 py-3 border-b border-indigo-100">
+                    <h3 class="font-bold text-lg text-indigo-900">3. 开放词汇脑电到文本生成的演进方法论</h3>
+                </div>
+                <div class="p-5 space-y-6">
+                    <div>
+                        <h4 class="font-semibold text-md text-slate-700 mb-2">3.1 早期 Seq2Seq 直接映射</h4>
+                        <div class="drop-zone min-h-[60px] bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg p-2 flex flex-wrap gap-2" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-md text-slate-700 mb-2">3.2 面向开放词汇解码的脑电表征学习</h4>
+                        <div class="drop-zone min-h-[60px] bg-indigo-50/40 border-2 border-dashed border-indigo-200 rounded-lg p-2 flex flex-wrap gap-2" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-md text-slate-700 mb-2">3.3 大语言模型 (LLM) 辅助解码</h4>
+                        <div class="drop-zone min-h-[60px] bg-indigo-50/40 border-2 border-dashed border-indigo-200 rounded-lg p-2 flex flex-wrap gap-2" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4 -->
+            <section class="bg-rose-50/40 shadow-sm border border-rose-200 rounded-xl overflow-hidden">
+                <div class="bg-rose-100 px-5 py-3 border-b border-rose-200 flex justify-between items-center">
+                    <h3 class="font-bold text-lg text-rose-900">4. 脑电到文本生成中的评估陷阱 (Pitfalls)</h3>
+                    <span class="text-xs font-semibold bg-rose-600 text-white px-2 py-1 rounded">理论核心区</span>
+                </div>
+                <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="p-4 bg-white border border-rose-100 rounded shadow-sm flex flex-col">
+                        <h4 class="font-semibold text-sm text-rose-800 mb-3">4.1 评估指标的问题</h4>
+                        <div class="drop-zone flex-1 min-h-[50px] bg-slate-50 border border-dashed border-slate-300 rounded p-2 flex flex-col gap-2" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+                    </div>
+                    <div class="p-4 bg-white border border-rose-100 rounded shadow-sm flex flex-col">
+                        <h4 class="font-semibold text-sm text-rose-800 mb-3">4.2 教师强制与暴露偏差</h4>
+                        <div class="drop-zone flex-1 min-h-[50px] bg-slate-50 border border-dashed border-slate-300 rounded p-2 flex flex-col gap-2" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+                    </div>
+                    <div class="p-4 bg-white border border-rose-100 rounded shadow-sm flex flex-col col-span-1 md:col-span-2">
+                        <h4 class="font-semibold text-sm text-rose-800 mb-3">4.3 语言模型先验与记忆效应</h4>
+                        <div class="drop-zone flex-1 min-h-[50px] bg-slate-50 border border-dashed border-slate-300 rounded p-2 flex flex-wrap gap-2" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+                    </div>
+                    <div class="p-4 bg-white border border-rose-100 rounded shadow-sm flex flex-col">
+                        <h4 class="font-semibold text-sm text-rose-800 mb-3">4.4 噪声基线对照</h4>
+                        <div class="drop-zone flex-1 min-h-[50px] bg-slate-50 border border-dashed border-slate-300 rounded p-2 flex flex-col gap-2" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+                    </div>
+                    <div class="p-4 bg-white border border-rose-100 rounded shadow-sm flex flex-col">
+                        <h4 class="font-semibold text-sm text-rose-800 mb-3">4.5 泛化验证</h4>
+                        <div class="drop-zone flex-1 min-h-[50px] bg-slate-50 border border-dashed border-slate-300 rounded p-2 flex flex-col gap-2" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 5 -->
+            <section class="bg-white shadow-sm border border-slate-200 rounded-xl overflow-hidden">
+                <div class="bg-emerald-50 px-5 py-3 border-b border-emerald-100">
+                    <h3 class="font-bold text-lg text-emerald-900">5. 数据集与基准 (Datasets and Benchmarks)</h3>
+                </div>
+                <div class="p-5 grid grid-cols-2 gap-4">
+                    <div class="p-4 border border-slate-200 rounded bg-slate-50/50 flex flex-col">
+                        <h4 class="font-semibold text-sm text-slate-700 mb-3">5.1 英文阅读 / 5.2 中文数据集</h4>
+                        <div class="drop-zone flex-1 min-h-[60px] bg-white border border-dashed border-slate-300 rounded p-2 flex flex-wrap gap-2" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+                    </div>
+                    <div class="p-4 border border-slate-200 rounded bg-slate-50/50 flex flex-col">
+                        <h4 class="font-semibold text-sm text-slate-700 mb-3">5.3 局限性 / 5.4 基准建设</h4>
+                        <div class="drop-zone flex-1 min-h-[60px] bg-white border border-dashed border-slate-300 rounded p-2 flex flex-wrap gap-2" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="pb-8 space-y-4">
+                <div class="p-5 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50">
+                    <h3 class="font-bold text-lg text-slate-700 mb-3">6. 未来方向 (Future directions)</h3>
+                    <div class="drop-zone min-h-[60px] rounded p-2 flex flex-wrap gap-2" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- ======================================================== -->
+    <!-- 原生拖拽逻辑                                               -->
+    <!-- ======================================================== -->
+    <script>
+        // 当开始拖拽时，记录拖拽元素的ID
+        function drag(ev) {
+            ev.dataTransfer.setData("text", ev.target.id);
+            ev.target.classList.add('dragging');
+        }
+
+        // 监听所有拖拽结束事件，恢复透明度
+        document.addEventListener("dragend", function (ev) {
+            if (ev.target.classList && ev.target.classList.contains('drag-item')) {
+                ev.target.classList.remove('dragging');
+            }
+        });
+
+        // 允许放置 (阻止默认的拒绝行为)
+        function allowDrop(ev) {
+            ev.preventDefault();
+        }
+
+        // 拖拽进入目标区域时的视觉反馈
+        function dragEnter(ev) {
+            ev.preventDefault();
+            let dropZone = ev.target.closest('.drop-zone');
+            if (dropZone) {
+                dropZone.classList.add('drag-over');
+            }
+        }
+
+        // 拖拽离开目标区域时的视觉反馈
+        function dragLeave(ev) {
+            let dropZone = ev.target.closest('.drop-zone');
+            if (dropZone) {
+                dropZone.classList.remove('drag-over');
+            }
+        }
+
+        // 放置逻辑
+        function drop(ev) {
+            ev.preventDefault();
+            let data = ev.dataTransfer.getData("text");
+            let draggedElement = document.getElementById(data);
+
+            // 找到最近的合法的 drop-zone
+            let dropZone = ev.target.closest('.drop-zone');
+
+            if (dropZone && draggedElement) {
+                dropZone.classList.remove('drag-over');
+                // 将元素移动到该区域
+                dropZone.appendChild(draggedElement);
+            }
+        }
+    </script>
+</body>
+</html>

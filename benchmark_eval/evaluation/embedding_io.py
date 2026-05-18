@@ -135,6 +135,44 @@ def _compute_ranks(v_eeg: np.ndarray, v_text: np.ndarray,
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# L2 归一化校验 (S-11)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def verify_l2_normalized(
+    v: np.ndarray,
+    name: str = "embedding",
+    atol: float = 1e-4,
+    auto_normalize: bool = False,
+) -> np.ndarray:
+    """校验向量矩阵是否已 L2 归一化，可选自动归一化。
+
+    Args:
+        v: (N, D) 待校验矩阵
+        name: 标识名（日志用）
+        atol: 允许的范数偏离 1.0 的绝对阈值
+        auto_normalize: True 则归一化后返回，False 则仅警告
+
+    Returns:
+        v（未改变 / 归一化后）
+    """
+    norms = np.linalg.norm(v, axis=1)
+    max_dev = float(np.max(np.abs(norms - 1.0)))
+    pct_ok = float(np.mean(np.abs(norms - 1.0) < atol)) * 100
+
+    if max_dev > atol:
+        import warnings
+        msg = (f"[{name}] L2 归一化检查失败：{pct_ok:.1f}% 行在 atol={atol} 内，"
+               f"max deviation={max_dev:.6f}（期望全部≈1.0）。")
+        if auto_normalize:
+            norms_safe = norms.copy()
+            norms_safe[norms_safe < 1e-12] = 1.0
+            v = v / norms_safe[:, np.newaxis]
+            msg += " 已自动 L2 归一化。"
+        warnings.warn(msg, stacklevel=2)
+    return v
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # 目录布线约定：test_outputs/line_b/{model}/{noise}/embeddings.npz
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -179,4 +217,5 @@ def save_significance_json(output_dir: str, payload: Dict[str, Any],
 __all__ = [
     "save_embeddings", "load_embeddings",
     "resolve_line_b_dir", "save_significance_json",
+    "verify_l2_normalized",
 ]

@@ -20,11 +20,10 @@
   - **结论订正**：原判断"B 线 real≈gaussian 是功效不足的产物"需修正——在 N=1858 下 real vs gaussian 的 Wilcoxon p 仍不显著（CET-MAE p=0.169, EEG-To-Text p=0.463, EEG2Text p=0.460, GLIM p=0.114），效应量 |d_z| 均 < 0.04（negligible）。说明**预训练模型确实没有区分真实 EEG 和同分布高斯噪声的能力**，A/B 悖论本质是数据含句子信号但这些模型的目标函数没有激励它们学到判别性表征
   - 副产物发现：CET-MAE 对 real vs shuffle (p_adj=0.0015) / real vs zero (p_adj=0.010) 显著；GLIM 对 real vs zero 的 r@5/r@10 显著；说明模型能感知结构破坏（shuffle/zero）但感知不到幅度谱一致的 gaussian 噪声
 
-- [ ] **S-2: `ks_vs_uniform` 的 scipy `args` 传参错误**
+- [x] **S-2: `ks_vs_uniform` 的 scipy `args` 传参错误** ✅ 已修复（2026-05-18）
   - 文件：`benchmark_eval/evaluation/significance.py` L336-L351
-  - 现状：`kstest(ranks, "uniform", args=(1, M))`，scipy 的 uniform 用 `(loc, scale)` 参数化，实际对应 Uniform[1, 1+M]
-  - 应为：`args=(1, M - 1)`（表示 Uniform[1, M]，离散 rank 的连续化近似）或 `args=(0.5, M)`（Uniform[0.5, M+0.5]）
-  - 影响：所有 KS vs Uniform 的 p 值均偏差（M 越大越显著偏保守）
+  - 修复：`kstest(ranks, "uniform", args=(1, M - 1))`，即 Uniform[1, M]（loc=1, scale=M-1）
+  - 影响：所有 KS vs Uniform 的 p 值口径对齐离散 rank 的连续化近似
 
 - [x] **S-3: `N_GLOBAL_TESTS` 常量硬编码错误** ✅ 已修复（2026-05-11）
   - 文件：`benchmark_eval/scripts/analysis/run_significance_tests.py` L59-L62
@@ -34,43 +33,39 @@
 
 ### High
 
-- [ ] **S-4: `bootstrap_mean_diff` 的 p 值可能 > 1.0**
+- [x] **S-4: `bootstrap_mean_diff` 的 p 值可能 > 1.0** ✅ 已修复（2026-05-18）
   - 文件：`benchmark_eval/evaluation/significance.py` L249-L250
-  - 现状：`p_emp = max(2.0 * (1.0 - prop), 1.0 / n_boot)`，当 prop < 0.5 时 `2*(1-prop) > 1`
   - 修复：`p_emp = min(1.0, max(2.0 * (1.0 - prop), 1.0 / n_boot))`
 
-- [ ] **S-5: `kruskal_dunn` 的 η²_H 错用 Cohen's d 阈值判级**
-  - 文件：`benchmark_eval/evaluation/significance.py` L458
-  - 现状：`"label": interpret_effect(eta2_h)`，复用 Cohen's d 的 0.2/0.5/0.8 阈值
-  - 应为：η²_H 的常用阈值（0.01 small / 0.06 medium / 0.14 large），或新增 `interpret_eta2()` 函数
+- [x] **S-5: `kruskal_dunn` 的 η²_H 错用 Cohen's d 阈值判级** ✅ 已修复（2026-05-18）
+  - 文件：`benchmark_eval/evaluation/significance.py`
+  - 修复：新增 `interpret_eta2()` 函数（阈值 0.01/0.06/0.14；Cohen 1988），`kruskal_dunn` 改用此函数
 
-- [ ] **S-6: 文档与代码数值不一致**
+- [x] **S-6: 文档与代码数值不一致** ✅ 已修复（2026-05-18）
   - 文件：`docs/detail/significance_tests_details.md`
-  - 问题清单：
-    - L406 "Holm-Bonferroni 单模型 18 组" vs L439 "36 个 p 值" vs L496 示例 "n_tests: 36"
-    - L369 "72 组全局校正" vs 实际应为 120（与 S-3 同步）
-    - L122 Mann-Whitney U 公式用 `min(U_a, n_a·n_b - U_a)`，但代码用 scipy 返回的 U_a
-  - 修复：与 S-3 修复同步更新，确认单模型 n_tests = 6 × 5 = 30 还是 6 × 3 = 18 后统一
+  - 修复：18→36、72→120、alpha 0.000694→0.000417；Mann-Whitney U 公式改用 U_a；新增 η² 阈值表
 
 ### Medium
 
-- [ ] **S-7: `permutation_retrieval` 采用 gt_idx 置换而非均匀候选**
-  - 检查是否符合 `significance_tests_details.md` 描述的原假设
-  - 若不符，修正实现或更新文档
+- [x] **S-7: `permutation_retrieval` 采用 gt_idx 置换而非均匀候选** ✅ 已核查（2026-05-18）
+  - 核查结论：实现是"固定 sim 矩阵，对 gt_idx 做无放回标签置换"，等价于在配对结构下的无信息原假设；与文档一致
+  - 修复：在 `docs/detail/significance_tests_details.md` 补充原假设澄清
 
-- [ ] **S-8: A 线 `A3_session_retrieval` 的 n 用 M 的不一致**
+- [x] **S-8: A 线 `A3_session_retrieval` 的 n 用 M 的不一致** ✅ 已修复（2026-05-18）
   - 文件：`benchmark_eval/scripts/diagnostics/validate_eeg_signal.py`
-  - 确认 A3 检索的样本量统计口径
+  - 修复：A3 session retrieval 增加 `k >= M` 守卫，跳过 baseline ≥ 1.0 的非法 binomtest 调用
 
-- [ ] **S-9: `adj < alpha` vs `adj <= alpha` 约定统一**
+- [x] **S-9: `adj < alpha` vs `adj <= alpha` 约定统一** ✅ 已修复（2026-05-18）
   - 文件：`benchmark_eval/evaluation/significance.py`
-  - 建议统一用 `<=`（与统计学界惯例一致），并在文档注明
+  - 修复：`holm_bonferroni` 与 `bh_fdr` 统一改为 `adj <= alpha`（与统计学惯例一致）
 
-- [ ] **S-10: `significance_tests.json` 重复写入问题**
-  - 排查 `run_significance_tests.py` 的写盘路径逻辑
+- [x] **S-10: `significance_tests.json` 重复写入问题** ✅ 已修复（2026-05-18）
+  - 文件：`benchmark_eval/scripts/analysis/run_significance_tests.py`
+  - 修复：移除盲目按 dirname 写副本；仅在嵌套布局（`line_b/{model}/{noise}`）下显式写一份索引副本到 `line_b/{model}/`
 
-- [ ] **S-11: 嵌入未归一化校验**
-  - 检索前确认所有模型的 embeddings 已 L2 归一化（或统一归一化），避免度量口径不一致
+- [x] **S-11: 嵌入未归一化校验** ✅ 已修复（2026-05-18）
+  - 文件：`benchmark_eval/evaluation/embedding_io.py` / `benchmark_eval/scripts/analysis/run_significance_tests.py`
+  - 修复：新增 `verify_l2_normalized()`，在 `_load_model_embeddings` 加载 v_eeg / v_text 后调用，偏差 > 1e-4 时告警并可选自动归一化
 
 ### 验证步骤（修复后）
 

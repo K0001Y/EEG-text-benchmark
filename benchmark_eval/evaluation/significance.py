@@ -92,6 +92,7 @@ def rank_biserial_r(u_stat: float, n_a: int, n_b: int) -> float:
 
 
 def interpret_effect(d: float) -> str:
+    """Cohen's d / d_z 阈值（0.2 / 0.5 / 0.8）。"""
     d = abs(d)
     if math.isnan(d):
         return "unknown"
@@ -100,6 +101,23 @@ def interpret_effect(d: float) -> str:
     if d < 0.5:
         return "small"
     if d < 0.8:
+        return "medium"
+    return "large"
+
+
+def interpret_eta2(eta2: float) -> str:
+    """η² / η²_H 阈值（0.01 small / 0.06 medium / 0.14 large；Cohen 1988）。
+
+    与 Cohen's d 阈值不同——η² 是方差解释比例，量纲与 d 不可混用。
+    """
+    if math.isnan(eta2):
+        return "unknown"
+    e = max(eta2, 0.0)  # 负值（H<k-1）视作 0
+    if e < 0.01:
+        return "negligible"
+    if e < 0.06:
+        return "small"
+    if e < 0.14:
         return "medium"
     return "large"
 
@@ -247,7 +265,7 @@ def bootstrap_mean_diff(a: Sequence[float], b: Sequence[float],
     lo, hi = np.percentile(boots, [2.5, 97.5])
     # 双尾经验 p：(# boots 跨过 0) / n_boot
     prop = (boots > 0).mean() if diff.mean() >= 0 else (boots < 0).mean()
-    p_emp = max(2.0 * (1.0 - prop), 1.0 / n_boot)
+    p_emp = min(1.0, max(2.0 * (1.0 - prop), 1.0 / n_boot))
     return {
         "test": "bootstrap_mean_diff",
         "statistic": _safe_float(diff.mean()),
@@ -334,14 +352,19 @@ def permutation_retrieval(sim: np.ndarray, gt_idx: Sequence[int],
 # ═══════════════════════════════════════════════════════════════════════════
 
 def ks_vs_uniform(ranks: Sequence[int], M: int) -> Dict[str, Any]:
-    """排名序列 vs 离散均匀 [1, M] 的 Kolmogorov-Smirnov 检验。"""
+    """排名序列 vs 离散均匀 [1, M] 的 Kolmogorov-Smirnov 检验。
+
+    注意：scipy 的 uniform 用 (loc, scale) 参数化，args=(loc, scale) 表示
+    Uniform[loc, loc+scale]。要表达 Uniform[1, M]，scale 需为 (M - 1)。
+    旧实现 args=(1, M) 对应 Uniform[1, 1+M]，会让 KS 统计量整体偏高。
+    """
     from scipy.stats import kstest
 
     ranks = np.asarray(ranks, dtype=np.float64)
     if ranks.size < 2 or M <= 1:
         return {"test": "ks_uniform", "error": "insufficient_samples"}
-    # 连续化：假设排名均匀分布于 [1, M]
-    res = kstest(ranks, "uniform", args=(1, M))
+    # 连续化：假设排名均匀分布于 [1, M]，对应 scipy uniform(loc=1, scale=M-1)
+    res = kstest(ranks, "uniform", args=(1, M - 1))
     return {
         "test": "ks_uniform",
         "statistic": _safe_float(res.statistic),
@@ -455,7 +478,7 @@ def kruskal_dunn(groups: Dict[str, Sequence[float]],
         "p": p,
         "n_groups": k,
         "n_total": int(N),
-        "effect": {"eta2_H": _safe_float(eta2_h), "label": interpret_effect(eta2_h)},
+        "effect": {"eta2_H": _safe_float(eta2_h), "label": interpret_eta2(eta2_h)},
         "groups": {k_: int(a.size) for k_, a in zip(keys, arrs)},
     }
 
@@ -540,7 +563,10 @@ def _eta_squared(x: np.ndarray, labels: np.ndarray) -> float:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def holm_bonferroni(pvals: Sequence[float], alpha: float = 0.05) -> Dict[str, Any]:
-    """Holm-Bonferroni 校正。返回排序后校正 p 及是否显著。"""
+    """Holm-Bonferroni 校正。返回排序后校正 p 及是否显著。
+
+    判定约定：`adj <= alpha` 视为显著（与统计学界惯例一致）。
+    """
     p = _as_array(pvals)
     n = p.size
     if n == 0:
@@ -554,7 +580,7 @@ def holm_bonferroni(pvals: Sequence[float], alpha: float = 0.05) -> Dict[str, An
         cur = max(cur, prev)  # 非递减
         adj[idx] = cur
         prev = cur
-    sig = adj < alpha
+    sig = adj <= alpha
     return {
         "method": "holm_bonferroni",
         "alpha": alpha,
@@ -566,7 +592,10 @@ def holm_bonferroni(pvals: Sequence[float], alpha: float = 0.05) -> Dict[str, An
 
 
 def bh_fdr(pvals: Sequence[float], alpha: float = 0.05) -> Dict[str, Any]:
-    """Benjamini-Hochberg FDR 校正。"""
+    """Benjamini-Hochberg FDR 校正。
+
+    判定约定：`adj <= alpha` 视为显著（与统计学界惯例一致）。
+    """
     p = _as_array(pvals)
     n = p.size
     if n == 0:
@@ -580,7 +609,7 @@ def bh_fdr(pvals: Sequence[float], alpha: float = 0.05) -> Dict[str, Any]:
         cur = min(cur, prev)
         adj[idx] = cur
         prev = cur
-    sig = adj < alpha
+    sig = adj <= alpha
     return {
         "method": "bh_fdr",
         "alpha": alpha,
@@ -630,7 +659,8 @@ __all__ = [
     "bootstrap_mean_diff", "permutation_retrieval",
     "ks_vs_uniform", "friedman_nemenyi", "kruskal_dunn", "permutation_eta",
     # 效应量
-    "cohens_dz_paired", "cohens_d_indep", "rank_biserial_r", "interpret_effect",
+    "cohens_dz_paired", "cohens_d_indep", "rank_biserial_r",
+    "interpret_effect", "interpret_eta2",
     # 多重校正
     "holm_bonferroni", "bh_fdr",
     # 组合 API

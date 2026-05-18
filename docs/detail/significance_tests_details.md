@@ -68,12 +68,25 @@ $$\eta^2_H = \frac{H - k + 1}{N - k}, \quad N > k$$
 
 ### 效应量解读标签
 
+#### Cohen's $d / d_z$（`interpret_effect`）
+
 | $|d|$ 区间 | 标签 |
 |-----------|------|
 | $< 0.2$ | negligible |
 | $[0.2, 0.5)$ | small |
 | $[0.5, 0.8)$ | medium |
 | $\geq 0.8$ | large |
+
+#### $\eta^2 / \eta^2_H$（`interpret_eta2`，Cohen 1988）
+
+| $\eta^2$ 区间 | 标签 |
+|-------------|------|
+| $< 0.01$ | negligible |
+| $[0.01, 0.06)$ | small |
+| $[0.06, 0.14)$ | medium |
+| $\geq 0.14$ | large |
+
+> 注意：$\eta^2$ 是方差解释比例，与 Cohen's $d$ 不可混用同一阈值。`kruskal_dunn` 的 `effect.label` 现已切换至 `interpret_eta2`（S-5 修复）。
 
 ---
 
@@ -119,7 +132,7 @@ $$[\text{CI}_{2.5}, \text{CI}_{97.5}] = \text{percentile}(\{\bar{\delta}^{(b)}\}
 
 $$U_a = \sum_{i \in a}\sum_{j \in b} \mathbf{1}[a_i > b_j] + \frac{1}{2}\mathbf{1}[a_i = b_j]$$
 
-$$U = \min(U_a,\ n_a n_b - U_a)$$
+代码采用 `scipy.stats.mannwhitneyu` 返回的 $U_a$ 直接进入秩移动效应量计算（不再取 $\min(U_a, n_a n_b - U_a)$），保留了 $r$ 的方向性。
 
 p 值由 `scipy.stats.mannwhitneyu(..., alternative=...)` 给出。
 
@@ -212,6 +225,8 @@ $$\text{R@K}_\text{obs} = \frac{1}{N_q}\sum_{i=1}^{N_q} \mathbf{1}[r_i \leq K], 
 
 $$\mathbf{g}^{(p)} = \mathbf{g}[\pi^{(p)}], \quad \pi^{(p)} \sim \text{Uniform}(\mathcal{S}_{N_q})$$
 
+> 注：$\pi^{(p)}$ 是 $\{1,\ldots,N_q\}$ 上的随机排列（无放回），等价于在已观测的真值集合内置换标签——保留 $\mathbf{g}$ 的频率分布，不在 $[0, N_c)$ 整个候选池上均匀重采样。`evaluation.significance.permutation_retrieval` 的实现 `gt_idx[rng.permutation(N)]` 即此规约。
+
 重算每次 $\text{R@K}^{(p)}$、$\text{MRR}^{(p)}$、$\text{mean\_rank}^{(p)}$，得 null 分布。
 
 ### 步骤 3：经验 p 值（方向自适应）
@@ -242,7 +257,9 @@ $$z = \frac{\text{obs} - \bar{\text{null}}}{s_\text{null} + 10^{-12}}, \quad \te
 
 $$D = \sup_r \left| F_N(r) - F_{\text{Uniform}[1,M]}(r) \right|$$
 
-$F_N$ 为经验 CDF。由 `scipy.stats.kstest(ranks, "uniform", args=(1, M))` 给出 p 值。
+$F_N$ 为经验 CDF。由 `scipy.stats.kstest(ranks, "uniform", args=(1, M - 1))` 给出 p 值。
+
+> scipy 的 `uniform(loc, scale)` 对应 $\text{Uniform}[\text{loc},\ \text{loc}+\text{scale}]$，故 $\text{Uniform}[1, M]$ 需 `args=(1, M-1)`（S-2 修复）。
 
 **解读**：$p < 0.05$ 意味着排名分布显著偏离"完全随机"，是模型学到某种可区分结构的必要条件（非充分）。
 
@@ -356,7 +373,7 @@ $$\tilde{p}_{(i)} = \max_{j \leq i}\,\min(1,\ (m - j + 1) \cdot p_{(j)})$$
 
 （单调非递减投影）；首个 p 值对应阈值 $\alpha/m$；所有 $\tilde{p}_{(i)} < \alpha$ 为显著。
 
-**适用**：A1 三组信号 × Top-K（9 组）；单模型 18 组条件对；跨被试两两 $p$ 值。
+**适用**：A1 三组信号 × Top-K（9 组）；单模型 36 组条件对（6 pair × 6 p-values）；跨被试两两 $p$ 值。
 
 ### Benjamini-Hochberg FDR（控假发现率）
 
@@ -366,7 +383,7 @@ $$\tilde{p}_{(i)} = \max_{j \leq i}\,\min(1,\ (m - j + 1) \cdot p_{(j)})$$
 
 $$\tilde{p}_{(i)} = \min_{j \geq i}\,\min\!\left(1,\ \frac{m}{j} p_{(j)}\right)$$
 
-**适用**：A2-Eta 840 维度级 $\eta^2$；B 线跨 4 模型 72 组全局校正；A2-band 跨频带。
+**适用**：A2-Eta 840 维度级 $\eta^2$；B 线跨 4 模型 120 组全局校正（4 模型 × 6 pair × 5 指标）；A2-band 跨频带。
 
 ### 校正策略映射
 
@@ -403,13 +420,13 @@ $$\tilde{p}_{(i)} = \min_{j \geq i}\,\min\!\left(1,\ \frac{m}{j} p_{(j)}\right)$
 
 | 块 | 比较对 | 方法 | 校正 |
 |----|--------|------|------|
-| `pairwise` | 6 条件对 × {R@1, R@5, R@10, MRR, mean_rank} 配对 rank | `compare_pair`（= `wilcoxon_paired` + `bootstrap_mean_diff`）| Holm-Bonferroni 单模型 18 组 |
+| `pairwise` | 6 条件对 × {R@1, R@5, R@10, MRR, mean_rank} 配对 rank | `compare_pair`（= `wilcoxon_paired` + `bootstrap_mean_diff`）| Holm-Bonferroni 单模型 36 组（6 pair × (1 wilcoxon_rank + 5 delta)）|
 | `vs_random_baseline` | R@K vs $K/M$ | `binomial_vs_baseline` | — |
 | `rank_distribution` | ranks vs Uniform$[1, M]$ | `ks_vs_uniform` | — |
 | `grouped` | 按 subject / task / dataset 的 rank 异质性 | `kruskal_dunn` | Dunn + BH-FDR |
 | `permutation_retrieval` | 每 noise 条件固定表示 → null R@K / MRR | `permutation_retrieval`（$N_q > 5000$ 跳过）| — |
 | `friedman_by_noise` | 4 模型 per-query rank 横向对比 | `friedman_nemenyi` | Nemenyi |
-| `bh_fdr_global` | 跨模型 72 组 $p$ 值 | `bh_fdr` | BH-FDR |
+| `bh_fdr_global` | 跨模型 120 组 $p$ 值 | `bh_fdr` | BH-FDR |
 
 ### 模式诊断与显著性门限（B 线）
 
@@ -448,9 +465,12 @@ $$\text{result} = \begin{cases}
 | $n_a < 2$ 或 $n_b < 2$ | 返回 `error="insufficient_samples"` |
 | $\text{SS}_\text{total} < 10^{-12}$ | $\eta^2 = 0$ 避免除零 |
 | $p_\text{perm} = 0$ | 下限 $1/P$ 防止 $\log p = -\infty$ |
+| $p_\text{bootstrap} > 1$ | 上限 $\min(1, \cdot)$ 防止 $2(1-q) > 1$（S-4 修复） |
 | $s_\text{null} < 10^{-12}$ | z-偏离分母加 $10^{-12}$ |
 | $N_q > 5000$ | permutation retrieval 跳过，标注 `skipped=true` |
 | `scikit-posthocs` 缺失 | Nemenyi 回退至 CD 法；Dunn 标注 `error="scikit-posthocs_not_installed"` |
+| 显著性判定 | `p_adj <= alpha`（含等号，与统计学惯例一致；S-9 修复） |
+| A3 检索 $k \geq M$ | 跳过二项检验，标注 `skipped=true, reason="k>=M"`（S-8 修复） |
 
 ---
 
@@ -480,7 +500,7 @@ $$\text{result} = \begin{cases}
 {
   "model": "cet_mae",
   "alpha": 0.05,
-  "alpha_adjusted_global": 0.000694,
+  "alpha_adjusted_global": 0.000417,
   "n_noises_loaded": 4,
   "pairwise": {
     "real_vs_gaussian": {
@@ -512,7 +532,7 @@ $$\text{result} = \begin{cases}
     "gaussian": { ... }
   },
   "bh_fdr_global": {
-    "method": "bh_fdr", "n_tests": 72,
+    "method": "bh_fdr", "n_tests": 120,
     "per_test": [ { "key": "cet_mae/real_vs_gaussian/r@1", "p": ..., "p_adj": ..., "significant": true }, ... ]
   }
 }
@@ -560,5 +580,5 @@ python benchmark_eval/scripts/analysis/run_significance_tests.py \
 | `benchmark_eval/scripts/analysis/run_significance_tests.py` | B 线显著性检验主脚本 |
 | `line_a/dataset_validity/significance_tests.json` | A 线 7 个子实验的检验结果 |
 | `line_b/{model}/significance_tests.json` | 每模型 5 块（pairwise / vs_random / KS / grouped / permutation）|
-| `line_b/significance_summary.json` | 跨模型 Friedman + Nemenyi + BH-FDR 全局 72 组 |
+| `line_b/significance_summary.json` | 跨模型 Friedman + Nemenyi + BH-FDR 全局 120 组 |
 | `line_b/significance_tests.log` | B 线运行日志 |

@@ -38,6 +38,7 @@ if BENCH_DIR not in sys.path:
 
 from evaluation.embedding_io import (
     load_embeddings, resolve_line_b_dir, save_significance_json,
+    verify_l2_normalized,
 )
 from evaluation.significance import (
     compare_pair, permutation_retrieval, binomial_vs_baseline,
@@ -83,14 +84,27 @@ def parse_args():
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _load_model_embeddings(results_dir: str, model: str) -> Dict[str, Dict[str, Any]]:
-    """返回 {noise: payload_dict}（缺失的 noise 直接跳过并记录）。"""
+    """返回 {noise: payload_dict}（缺失的 noise 直接跳过并记录）。
+
+    S-11: 加载后校验 v_eeg / v_text 是否 L2 归一化，未归一化则警告。
+    """
     out: Dict[str, Dict[str, Any]] = {}
     for noise in NOISE_CONDITIONS:
         target_dir = resolve_line_b_dir(results_dir, model, noise)
         emb_path = os.path.join(target_dir, "embeddings.npz")
         if not os.path.isfile(emb_path):
             continue
-        out[noise] = load_embeddings(emb_path)
+        payload = load_embeddings(emb_path)
+        # L2 归一化校验（仅警告，不强制改写——保持原始数据真相）
+        if "v_eeg" in payload:
+            verify_l2_normalized(
+                np.asarray(payload["v_eeg"], dtype=np.float32),
+                name=f"{model}/{noise}/v_eeg")
+        if "v_text" in payload:
+            verify_l2_normalized(
+                np.asarray(payload["v_text"], dtype=np.float32),
+                name=f"{model}/{noise}/v_text")
+        out[noise] = payload
         out[noise]["_path"] = emb_path
     return out
 
@@ -388,9 +402,18 @@ def main():
         out_dir = resolve_line_b_dir(args.results_dir, model, preferred_noise)
         save_significance_json(out_dir, payload)
         logger.info("  → %s/significance_tests.json", out_dir)
-        # 也在模型根目录保存一份便于索引
-        model_root = os.path.dirname(out_dir)
-        save_significance_json(model_root, payload)
+        # S-10: 索引副本只在嵌套布局（line_b/{model}/{noise}）下生成到 line_b/{model}/
+        # flat 布局（eval_{model}_retrieval/）的 dirname 会指向 results_root，
+        # 容易把摘要写到根目录污染 line_b/significance_summary.json，需显式校验。
+        model_root_expected = os.path.join(args.results_dir, "line_b", model)
+        out_dir_abs = os.path.abspath(out_dir)
+        if os.path.abspath(model_root_expected) != out_dir_abs and \
+                out_dir_abs.startswith(os.path.abspath(model_root_expected) + os.sep):
+            save_significance_json(model_root_expected, payload)
+            logger.info("  → %s/significance_tests.json (索引副本)",
+                        model_root_expected)
+        else:
+            logger.info("  跳过索引副本（flat 布局或路径不在 line_b/%s 下）", model)
 
     # ── 跨模型 Friedman + Nemenyi ──
     logger.info("=" * 60)

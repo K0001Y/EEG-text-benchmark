@@ -1447,6 +1447,12 @@ def run_line_a_significance(*, all_results: Dict[str, Any],
                 if not M:
                     continue
                 for k in (1, 5, 10):
+                    # S-8: 跳过 k >= M 的情况（baseline=k/M >= 1 无意义）
+                    if k >= M:
+                        entry_sr[f"{src_key}.{agg}.r@{k}_vs_random"] = {
+                            "skipped": True,
+                            "reason": f"k={k} >= M={M}, baseline >= 1.0"}
+                        continue
                     rk_val = r.get(f"r@{k}")
                     if rk_val is None:
                         continue
