@@ -288,7 +288,7 @@ def run_loso_linear_probe(X, y, groups, n_classes, variant_name, logger):
     logger.info("  N=%d, n_classes=%d, n_groups=%d",
                 X.shape[0], n_classes, len(np.unique(groups)))
 
-    sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=DEFAULT_SEED)
+    sgkf = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=DEFAULT_SEED)
 
     fold_results = []
     for fold_idx, (train_idx, test_idx) in enumerate(
@@ -946,7 +946,7 @@ def run_desubject_analysis(test_feats, y, groups, n_classes,
     logger.info("=== A3: 去被试化验证（LOSO框架） ===")
 
     # ── A3-LP: LOSO 框架下 per-subject z-score + Linear Probe ──
-    sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=DEFAULT_SEED)
+    sgkf = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=DEFAULT_SEED)
 
     fold_results = []
     for fold_idx, (train_idx, test_idx) in enumerate(
