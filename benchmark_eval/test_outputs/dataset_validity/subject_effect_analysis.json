@@ -1,0 +1,157 @@
+{
+  "cosine_similarity": {
+    "eeg": {
+      "same_sent_diff_subj": {
+        "count": 13990,
+        "mean": 0.579848,
+        "std": 0.198972,
+        "median": 0.62371
+      },
+      "same_subj_diff_sent": {
+        "count": 76976,
+        "mean": 0.805207,
+        "std": 0.129294,
+        "median": 0.835159
+      },
+      "diff_sent_diff_subj": {
+        "count": 1634121,
+        "mean": 0.5722,
+        "std": 0.203663,
+        "median": 0.617686
+      },
+      "same_subj_diff_sent_same_session": {
+        "count": 34817,
+        "mean": 0.821222,
+        "std": 0.13033,
+        "median": 0.851561
+      },
+      "same_subj_diff_sent_cross_session": {
+        "count": 33159,
+        "mean": 0.790944,
+        "std": 0.122145,
+        "median": 0.820185
+      },
+      "ranking": [
+        "same_subj_diff_sent",
+        "same_sent_diff_subj",
+        "diff_sent_diff_subj"
+      ],
+      "session_delta_same_minus_cross": 0.030278
+    },
+    "noise": {
+      "same_sent_diff_subj": {
+        "count": 13990,
+        "mean": -2.4e-05,
+        "std": 0.034366,
+        "median": 0.00017
+      },
+      "same_subj_diff_sent": {
+        "count": 76976,
+        "mean": -0.000138,
+        "std": 0.034484,
+        "median": 1.6e-05
+      },
+      "diff_sent_diff_subj": {
+        "count": 1634121,
+        "mean": -4.5e-05,
+        "std": 0.034506,
+        "median": -1.6e-05
+      },
+      "same_subj_diff_sent_same_session": {
+        "count": 34817,
+        "mean": 4.8e-05,
+        "std": 0.034421,
+        "median": -6e-06
+      },
+      "same_subj_diff_sent_cross_session": {
+        "count": 33159,
+        "mean": -0.000248,
+        "std": 0.034509,
+        "median": 3.1e-05
+      },
+      "ranking": [
+        "same_sent_diff_subj",
+        "diff_sent_diff_subj",
+        "same_subj_diff_sent"
+      ],
+      "session_delta_same_minus_cross": 0.000296
+    }
+  },
+  "eta_squared": {
+    "eeg": {
+      "eta2_sentence": {
+        "mean": 0.091379,
+        "median": 0.069725,
+        "std": 0.058487
+      },
+      "eta2_subject": {
+        "mean": 0.478903,
+        "median": 0.481344,
+        "std": 0.131222
+      },
+      "n_features": 840,
+      "n_sentences": 130,
+      "n_subjects": 30,
+      "eta2_session": {
+        "mean": 0.006159,
+        "median": 0.002885,
+        "std": 0.009452
+      },
+      "n_known_session_samples": 1282,
+      "r_subj_vs_sent": 6.9035,
+      "conclusion": "subject_dominant",
+      "r_session_vs_sent": 0.0414,
+      "session_conclusion": "session_weak",
+      "task1_sr_control": {
+        "eta2_sentence": {
+          "mean": 0.05428,
+          "median": 0.049953,
+          "std": 0.023582
+        },
+        "eta2_subject": {
+          "mean": 0.426825,
+          "median": 0.426508,
+          "std": 0.153582
+        },
+        "n_features": 840,
+        "n_sentences": 40,
+        "n_subjects": 12,
+        "eta2_session": {
+          "mean": 0.00981,
+          "median": 0.005245,
+          "std": 0.012677
+        },
+        "n_known_session_samples": 469,
+        "r_subj_vs_sent": 8.5382,
+        "conclusion": "subject_dominant",
+        "r_session_vs_sent": 0.105,
+        "session_conclusion": "session_weak"
+      }
+    },
+    "noise": {
+      "eta2_sentence": {
+        "mean": 0.069662,
+        "median": 0.069457,
+        "std": 0.008285
+      },
+      "eta2_subject": {
+        "mean": 0.015485,
+        "median": 0.015197,
+        "std": 0.003912
+      },
+      "n_features": 840,
+      "n_sentences": 130,
+      "n_subjects": 30,
+      "eta2_session": {
+        "mean": 0.000713,
+        "median": 0.000291,
+        "std": 0.000994
+      },
+      "n_known_session_samples": 1282,
+      "r_subj_vs_sent": 0.2188,
+      "conclusion": "sentence_dominant",
+      "r_session_vs_sent": 0.0042,
+      "session_conclusion": "session_weak"
+    }
+  }
+}

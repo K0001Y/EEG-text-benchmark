@@ -1,0 +1,66 @@
+{
+  "theta1": {
+    "eta2_sentence_median": 0.059469,
+    "eta2_subject_median": 0.457515,
+    "eta2_sentence_mean": 0.064134,
+    "eta2_subject_mean": 0.466598,
+    "eta2_session_median": 0.002084,
+    "eta2_session_mean": 0.005372
+  },
+  "theta2": {
+    "eta2_sentence_median": 0.056456,
+    "eta2_subject_median": 0.451114,
+    "eta2_sentence_mean": 0.059743,
+    "eta2_subject_mean": 0.448812,
+    "eta2_session_median": 0.002741,
+    "eta2_session_mean": 0.005147
+  },
+  "alpha1": {
+    "eta2_sentence_median": 0.061815,
+    "eta2_subject_median": 0.459681,
+    "eta2_sentence_mean": 0.063612,
+    "eta2_subject_mean": 0.461606,
+    "eta2_session_median": 0.003936,
+    "eta2_session_mean": 0.006858
+  },
+  "alpha2": {
+    "eta2_sentence_median": 0.083005,
+    "eta2_subject_median": 0.473954,
+    "eta2_sentence_mean": 0.090144,
+    "eta2_subject_mean": 0.468426,
+    "eta2_session_median": 0.003827,
+    "eta2_session_mean": 0.007575
+  },
+  "beta1": {
+    "eta2_sentence_median": 0.08835,
+    "eta2_subject_median": 0.513127,
+    "eta2_sentence_mean": 0.098837,
+    "eta2_subject_mean": 0.487731,
+    "eta2_session_median": 0.002951,
+    "eta2_session_mean": 0.007042
+  },
+  "beta2": {
+    "eta2_sentence_median": 0.069495,
+    "eta2_subject_median": 0.486119,
+    "eta2_sentence_mean": 0.087473,
+    "eta2_subject_mean": 0.464684,
+    "eta2_session_median": 0.003947,
+    "eta2_session_mean": 0.007117
+  },
+  "gamma1": {
+    "eta2_sentence_median": 0.064491,
+    "eta2_subject_median": 0.441684,
+    "eta2_sentence_mean": 0.070414,
+    "eta2_subject_mean": 0.448255,
+    "eta2_session_median": 0.002244,
+    "eta2_session_mean": 0.005119
+  },
+  "gamma2": {
+    "eta2_sentence_median": 0.201858,
+    "eta2_subject_median": 0.58082,
+    "eta2_sentence_mean": 0.196677,
+    "eta2_subject_mean": 0.585109,
+    "eta2_session_median": 0.002455,
+    "eta2_session_mean": 0.005039
+  }
+}

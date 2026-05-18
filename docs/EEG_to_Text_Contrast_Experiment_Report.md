@@ -453,6 +453,7 @@ Duration-weighted Top-1=1.80% 略低于 mean-pool 的 1.92%，差异不显著（
 | **A2 余弦** | 观察性统计 | — | 分组均值/中位数，不做假设检验 |
 | **A2 η²** | Wilcoxon 配对（n=840 维） + 5 维 Permutation（n_perm=200） | — | 被试效应 vs 句子效应 |
 | **A3-LP** | Wilcoxon 配对检验（n=5 折） | — | 去被试化前后差异 |
+| **A1d（跨 Session）** | Wilcoxon 配对检验（n=12 被试） | — | 逐被试 acc vs baseline + EEG vs noise 配对对比 |
 | **A3-Retrieval** | Binomial 二项检验（n=5 对） | — | 聚合检索 vs 随机基线 |
 | **B（模型间，按噪声内）** | Friedman 检验 + Nemenyi CD + Kendall W | CD α=0.05 | 跨 4 模型同一噪声下的排序差异 |
 | **B（模型内，成对）** | Wilcoxon + Bootstrap 均值差（**n=1858 查询**，修复 S-1 后） | Holm-Bonferroni（每模型 30 测试） | real/gaussian/shuffle/zero 两两对比 |
@@ -486,6 +487,42 @@ Duration-weighted Top-1=1.80% 略低于 mean-pool 的 1.92%，差异不显著（
 
 **解读**：5 折样本量有限导致 Wilcoxon 的 p 值下界即为 0.0625（2/32），即便效应量为"大"也无法通过 Holm 校正。但 **Cohen's dz ≥ 2** 的效应量与 Binomial 测试共同支持"词级/句级 EEG 显著优于噪声"的结论。词级 vs 句级效应量 dz≈0（negligible），说明两种粒度信息量几乎一致。
 
+#### A1d 跨 Session Linear Probe 显著性检验
+
+**目的**：验证 EEG 信号在同一被试的不同 Session 间是否存在可检测的差异，与噪声对照对比。
+
+**方法**：对 12 名有双 Session 数据的被试，每名被试做 5 折 Session 分类（Session 1 vs Session 2），记录分类精度。逐被试与随机 baseline 配对做 Wilcoxon signed-rank 检验，跨被试做 EEG vs noise 配对检验。
+
+**Overall（n=12 被试）**：
+
+| 对比 | W 统计量 | p 值 | Cohen's dz | mean_diff | 显著性 |
+|------|---------|------|------------|-----------|--------|
+| word_eeg acc vs baseline | 78.0 | **2.44 × 10⁻⁴** ★★★ | 15.62 (large) | +0.3994 | ★★★ |
+| sent_eeg acc vs baseline | 78.0 | **2.44 × 10⁻⁴** ★★★ | 10.94 (large) | +0.3851 | ★★★ |
+| noise acc vs baseline | 27.0 | 0.830 (n.s.) | −0.37 (medium) | −0.0165 | n.s. |
+| word_eeg vs noise | 78.0 | **2.44 × 10⁻⁴** ★★★ | 7.02 (large) | +0.4159 | ★★★ |
+| sent_eeg vs noise | 78.0 | **2.44 × 10⁻⁴** ★★★ | 7.08 (large) | +0.4016 | ★★★ |
+| word_eeg vs sent_eeg | 1.0 | 0.031 ★ | 0.72 (medium) | +0.0143 | ★ |
+
+**Task1-SR 子集（n=12 被试）**：
+
+| 对比 | W 统计量 | p 值 | Cohen's dz | mean_diff | 显著性 |
+|------|---------|------|------------|-----------|--------|
+| word_eeg acc vs baseline | 78.0 | **2.44 × 10⁻⁴** ★★★ | 14.89 (large) | +0.3885 | ★★★ |
+| sent_eeg acc vs baseline | 78.0 | **2.44 × 10⁻⁴** ★★★ | 6.31 (large) | +0.3572 | ★★★ |
+| noise acc vs baseline | 17.5 | 0.857 (n.s.) | −0.39 (medium) | −0.0217 | n.s. |
+| word_eeg vs noise | 78.0 | **2.44 × 10⁻⁴** ★★★ | 7.89 (large) | +0.4101 | ★★★ |
+| sent_eeg vs noise | 78.0 | **2.44 × 10⁻⁴** ★★★ | 7.58 (large) | +0.3789 | ★★★ |
+| word_eeg vs sent_eeg | 0.0 | 0.031 ★ | 0.61 (medium) | +0.0313 | ★ |
+
+**关键发现**：
+1. **EEG 跨 Session 分类极显著超越 baseline**：词级 EEG acc=98.85% vs baseline=58.91%（p=2.4×10⁻⁴★★★，dz=15.62），句级 EEG acc=97.42%（p=2.4×10⁻⁴★★★，dz=10.94），效应量巨大。
+2. **噪声无法区分 Session**：噪声 acc=57.26% vs baseline=58.91%（p=0.830，n.s.），进一步验证流程无shortcut。
+3. **EEG 远超噪声**：word_eeg vs noise（p=2.4×10⁻⁴★★★，dz=7.02），sent_eeg vs noise（p=2.4×10⁻⁴★★★，dz=7.08），差异极其显著。
+4. **词级略优于句级**：word_eeg vs sent_eeg 整体 p=0.031（dz=0.72），Task1-SR 子集 p=0.031（dz=0.61），均为中等效应量，说明词级注视 EEG 携带更多 Session 可区分信息。
+
+**诊断意义**：EEG 的 Session 可区分性一方面印证了 EEG 信号的真实性（噪声无法做到），另一方面也暗示 Session 间的非语义差异（如电极状态、疲劳等）是 EEG 方差的显著来源，可能干扰句子语义信号的提取。
+
 #### A2 被试效应显著性
 
 **η² 方差分解（n=840 维，Wilcoxon 配对检验 η²_subject vs η²_sentence）：**
@@ -517,10 +554,10 @@ Duration-weighted Top-1=1.80% 略低于 mean-pool 的 1.92%，差异不显著（
 
 **结论**：per-subject z-score 归一化导致所有指标"大效应量"下降。虽因 n=5 未通过 0.05 阈值，但 dz ≈ -2.9 表明这是**稳定且显著的负效果**，验证了 §5.2 的结论："简单去被试化破坏了句子信号"。
 
-**A3 聚合检索 vs 随机基线（Binomial, n=5 折）：**
+**A3 聚合检索 vs 随机基线（Binomial, n=5 折）**：
 - EEG.R@1=0% vs 基线 p₀=20%（由 k/n_candidates 估计）：p=1.0，差异不显著
 - 噪声 R@1=0% 同样未显著。
-- 因每折仅 5 个查询，统计功效极低；R@10 的二项检验因观测频率=2.0（均值≥1）产生了公式越界错误，已在 JSON 中以 "error" 字段标注。
+- R@5 / R@10 的 Binomial 检验因 k ≥ M（仅 5 个句子候选）导致 baseline=1.0，已按规范跳过（先前版本产生的 `p (2.0) must be in range [0,1]` 越界错误已修复）。
 
 ### 4.4.3 诊断线 B：噪声对照显著性检验
 
@@ -565,6 +602,7 @@ Duration-weighted Top-1=1.80% 略低于 mean-pool 的 1.92%，差异不显著（
 | 结论维度 | 统计证据 |
 |---------|---------|
 | **EEG 携带句子信号（vs 噪声）** | Binomial n=1858：词级 p=9.1e-7★★★；Wilcoxon dz≥2.4；A2 η²_subject vs η²_sentence p=4e-139 |
+| **EEG 跨 Session 可区分** | A1d Wilcoxon n=12：word_eeg vs baseline p=2.4e-4★★★ dz=15.62；sent_eeg vs baseline p=2.4e-4★★★ dz=10.94；noise vs baseline p=0.830 n.s. |
 | **被试效应主导** | A2 Wilcoxon dz=3.05 (large)；Permutation 5/5 维显著 |
 | **去被试化失败** | A3-LP dz=-2.89 (large，稳定负效果) |
 | **CET-MAE 不能判别 real vs 高斯噪声** | real_vs_gaussian 所有指标 BH-FDR p_adj > 0.24；\|dz\| < 0.03 （v4 结论订正） |
@@ -585,6 +623,8 @@ Duration-weighted Top-1=1.80% 略低于 mean-pool 的 1.92%，差异不显著（
 - A2 噪声η²_被试=0.0152（远低于EEG的0.4813），证实被试效应是真实信号
 
 **与v2报告的修正**：v2报告中A1 Top-1=0.16%（低于随机基线0.77%），这是因为使用了train/test划分而非LOSO交叉验证。v3采用LOSO 5折CV后，词级EEG的Top-1提升至1.92%，显著超越随机基线。**结论从"EEG几乎不含句子信号"修正为"EEG包含微弱但可检测的句子信号"**。
+
+**A1d 跨 Session 验证的补充证据**：A1d 跨 Session Linear Probe 进一步证实了 EEG 信号的真实性——词级 EEG 在同一被试的 Session 1 vs Session 2 二分类上达到 98.85% 准确率，远超 baseline 58.91%（Wilcoxon p=2.4×10⁻⁴，dz=15.62），而噪声仅 57.26%（p=0.830，n.s.）。这一定量证据排除了"词级 EEG Top-1 超越噪声是由流程 artifact 导致"的可能。但同时，EEG 的高 Session 可区分性也暗示非语义变异（电极状态、疲劳等）是 EEG 方差的显著来源。
 
 **残留问题**：虽然EEG超越噪声，但1.92%的Top-1在130类分类中仍属极低水平（仅约2.5倍于随机基线），说明句子信号虽然存在但信噪比极低。
 
@@ -730,7 +770,7 @@ Jo et al. (2025) 发现：
 
 ### 8.1 核心结论
 
-1. **数据层面**：ZuCo 频域特征（840-dim）在LOSO交叉验证下**包含微弱但可检测的句子级信号**。词级EEG Top-1=1.92%，显著超越噪声基线1.03%（+86%）。但信噪比极低——被试效应主导（η²=0.48 vs 0.07，比值6.9:1），简单的z-score去被试化反而破坏了有用信号。
+1. **数据层面**：ZuCo 频域特征（840-dim）在LOSO交叉验证下**包含微弱但可检测的句子级信号**。词级EEG Top-1=1.92%，显著超越噪声基线1.03%（+86%）。但信噪比极低——被试效应主导（η²=0.48 vs 0.07，比值6.9:1），简单的z-score去被试化反而破坏了有用信号。A1d 跨 Session 实验进一步证实了 EEG 信号的真实性：词级 EEG 在 Session 分类上达 98.85%（vs baseline 58.91%，p=2.4×10⁻⁴），而噪声仅 57.26%（n.s.），但 EEG 的高 Session 可区分性也暗示非语义变异是显著的干扰因素。
 
 2. **模型层面**：四个模型在修复 S-1 后的 N=1858 显著性检验下均**未能学到 "real vs 同分布高斯噪声" 的判别性特征**：
    - EEG-To-Text：编码器完全退化（BH-FDR 零显著）
@@ -772,7 +812,7 @@ Jo et al. (2025) 发现：
 
 ---
 
-*报告更新于 2026-05-11（v5：修复 `_align_ranks_by_query` 样本量坍缩 Bug S-1，重跑诊断线 B 全量 n=1858 显著性检验，订正 Friedman / Nemenyi CD / BH-FDR 结果，诊断结论核心方向不变但 CET-MAE 的 `real vs gaussian` 由显著订正为不显著）*  
+*报告更新于 2026-05-18（v6：重新执行A线显著性检验，新增A1d跨Session显著性检验结果，修正A3-SessionRetrieval r@10越界错误为规范跳过，更新§4.4/§5.1/§8.1相关结论）*  
 *v4 更新：2026-05-01（在 v3 基础上新增§4.4 显著性检验与BH-FDR全局校正）*  
 *v3 更新：2026-04-23（三组信号并行 + LOSO 5折CV）*  
 *首次生成于 2026-04-11*  

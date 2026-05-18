@@ -55,6 +55,19 @@ $$p\text{-value} = P(X \ge k) = \sum_{i=k}^{n} \binom{n}{i} p_0^i (1-p_0)^{n-i}$
 | A1a 句级 vs 噪声 | Top-5 | 1.63 (large) | 0.0625 | 0.5625 (n.s.) |
 | A1a 词级 vs 句级 | Top-1 | 0.08 (negligible) | 0.875 | 0.5625 (n.s.) |
 
+**解读：为何 Binomial 下 EEG 显著超越随机而 Wilcoxon 下 EEG 与噪声差异不显著？**
+
+两种检验的统计功效差异源于样本量：Binomial 用 n=1858 条样本，Wilcoxon 用 n=5 折。
+
+1. **Binomial 功效分析**：检验 $H_0: p = p_0 = 1/130$，标准误 $\text{SE} = \sqrt{p_0(1-p_0)/n} = \sqrt{0.0077 \times 0.9923 / 1858} \approx 0.203\%$。词级 EEG 观测 $\hat{p} = 1.9376\%$，偏离基线 $\Delta = (1.9376 - 0.77) / 0.203 \approx 5.7\text{ SE}$，远超 $z_{0.999} = 3.09$，故 $p = 9.1 \times 10^{-7}$。噪声 $\Delta \approx 1.2\text{ SE}$，不足显著。
+
+2. **Wilcoxon 功效下界**：n=5 折时，Wilcoxon signed-rank 的可能秩和 $W^+ \in \{0, 1, \ldots, 15\}$，两尾最小可达 p 值为 $2 \times P(W^+ = 0) = 2/2^5 = 0.0625$。即**无论效应量多大，n=5 的 Wilcoxon 永远无法产出 $p < 0.0625$**。词级 vs 噪声 Top-5 的 $W^+ = 15$（5 折全部词级 > 噪声），已达理论最小秩和，$p = 0.0625$ 恰为下界。
+
+3. **Holm 校正进一步收紧**：9 个测试中，$p_{\text{adj}} = \min(1, 0.0625 \times 9) = 0.5625$，远超 $\alpha = 0.05$。
+
+4. **效应量与 p 值的解耦**：Cohen's $d_z = \bar{d} / s_d$，词级 vs 噪声 Top-5 的 $d_z = 2.77$（极大），但 $d_z$ 不依赖 n，而 p 值同时依赖 $d_z$ 和 n。$t$ 统计量 $= d_z \times \sqrt{n-1} = 2.77 \times 2 = 5.54$，对应自由度 4 的 $t$ 检验 $p \approx 0.005$（参数检验下可通过），但 Wilcoxon 作为非参数检验在此 n 下效率更低（渐近相对效率 $\approx 0.955$），且离散性更强。
+
+**结论**：$d_z \geq 2$ 与 Binomial $p < 10^{-6}$ 共同支撑"EEG 显著优于噪声"，Wilcoxon n.s. 纯属 n=5 功效不足，而非效应不存在。
 
 #### A1-b
 使用注视时长对每个词级别信号进行加权
@@ -72,8 +85,46 @@ $$\mathbf{f}_i = \sum_{t=1}^{T_i} w_{i,t} \cdot \text{eeg\_valid}_{i,t,:}, \quad
 $$\mathbf{f}_i^{\text{word}} = \text{flatten}\!\left(\frac{1}{T_i}\sum_{t} \text{eeg\_valid}_{i,t,:}.reshape(8,105)\right)$$
 
 #### A1-d
-跨session实验（尚未实现）
-**思路**：取一个被试的所有样本，针对不同session进行分类（二分类）
+跨session实验：取一个被试的所有样本，针对不同session进行分类（二分类），12名有双Session数据的被试各做5折Session分类
+
+**结果**
+
+| 信号组 | Acc (均值±std) | Baseline | Δvs Baseline |
+|--------|---------------|----------|-------------|
+| **词级 EEG** | **98.85%** (±1.51) | 58.91% | **+39.94%** |
+| **句级 EEG** | **97.42%** (±2.46) | 58.91% | **+38.51%** |
+| 高斯噪声 | 57.26% (±4.87) | 58.91% | -1.65% |
+
+**Task1-SR 子集**
+
+| 信号组 | Acc (均值±std) | Baseline | Δvs Baseline |
+|--------|---------------|----------|-------------|
+| **词级 EEG** | **99.31%** (±1.22) | 60.46% | **+38.85%** |
+| **句级 EEG** | **96.18%** (±5.24) | 60.46% | **+35.72%** |
+| 高斯噪声 | 58.29% (±5.40) | 60.46% | -2.17% |
+
+##### 显著性
+**Wilcoxon 配对检验（n=12 被试）—— Overall：**
+
+| 对比 | W 统计量 | p 值 | Cohen's dz | mean_diff | 显著性 |
+|------|---------|------|------------|-----------|--------|
+| word_eeg acc vs baseline | 78.0 | **2.44 × 10⁻⁴** ★★★ | 15.62 (large) | +0.3994 | ★★★ |
+| sent_eeg acc vs baseline | 78.0 | **2.44 × 10⁻⁴** ★★★ | 10.94 (large) | +0.3851 | ★★★ |
+| noise acc vs baseline | 27.0 | 0.830 (n.s.) | −0.37 (medium) | −0.0165 | n.s. |
+| word_eeg vs noise | 78.0 | **2.44 × 10⁻⁴** ★★★ | 7.02 (large) | +0.4159 | ★★★ |
+| sent_eeg vs noise | 78.0 | **2.44 × 10⁻⁴** ★★★ | 7.08 (large) | +0.4016 | ★★★ |
+| word_eeg vs sent_eeg | 1.0 | 0.031 ★ | 0.72 (medium) | +0.0143 | ★ |
+
+**Wilcoxon 配对检验（n=12 被试）—— Task1-SR 子集：**
+
+| 对比 | W 统计量 | p 值 | Cohen's dz | mean_diff | 显著性 |
+|------|---------|------|------------|-----------|--------|
+| word_eeg acc vs baseline | 78.0 | **2.44 × 10⁻⁴** ★★★ | 14.89 (large) | +0.3885 | ★★★ |
+| sent_eeg acc vs baseline | 78.0 | **2.44 × 10⁻⁴** ★★★ | 6.31 (large) | +0.3572 | ★★★ |
+| noise acc vs baseline | 17.5 | 0.857 (n.s.) | −0.39 (medium) | −0.0217 | n.s. |
+| word_eeg vs noise | 78.0 | **2.44 × 10⁻⁴** ★★★ | 7.89 (large) | +0.4101 | ★★★ |
+| sent_eeg vs noise | 78.0 | **2.44 × 10⁻⁴** ★★★ | 7.58 (large) | +0.3789 | ★★★ |
+| word_eeg vs sent_eeg | 0.0 | 0.031 ★ | 0.61 (medium) | +0.0313 | ★ |
 
 ---
 
@@ -267,7 +318,20 @@ $$\hat{\mathbf{u}}_s = \frac{\mathbf{v}^{(1)}_s}{\max(\|\mathbf{v}^{(1)}_s\|_2, 
 
 $$\mathbf{S} \in \mathbb{R}^{M \times M}, \quad S_{ij} = \hat{\mathbf{u}}_i \cdot \hat{\mathbf{v}}_j$$
 
----
+**结果**
+
+| 信号组 | R@1 | R@5 | R@10 | MRR | Mean Rank | 随机基线 R@1 |
+|--------|-----|-----|------|-----|-----------|-------------|
+| **EEG** | 0.00% | 100% | 100% | **0.323** | **3.4** | 20% |
+| **噪声** | 0.00% | 100% | 100% | 0.237 | 4.4 | 20% |
+
+> 注：仅 5 个公共句子（M=5），R@5/R@10 的 baseline=100%，Binomial 检验已按规范跳过。
+
+##### 显著性
+**Binomial 二项检验（n=5, H₀: p₀=20%）：**
+- EEG R@1=0% vs 基线：p=1.0 (n.s.)
+- 噪声 R@1=0% vs 基线：p=1.0 (n.s.)
+- R@5/R@10：k ≥ M，baseline ≥ 1.0，已按规范跳过（先前版本产生的 `p (2.0) must be in range [0,1]` 越界错误已修复）⚠️ 数据修复
 
 ## B线实验
 使用模型的编码器对EEG信号进行编码，计算编码后的EEG向量与文本向量的相似度。进行检索
@@ -281,9 +345,9 @@ $$\mathbf{S} \in \mathbb{R}^{M \times M}, \quad S_{ij} = \hat{\mathbf{u}}_i \cdo
 | shuffle | 0.92% | 4.57% | 8.34% | 0.0448 | 66.0 |
 | zero | 0.65% | 4.47% | 8.40% | 0.0425 | 65.2 |
 
-**诊断**：real MRR (0.0484) > gaussian MRR (0.0426)，差异 +0.0058
+**诊断**：real 与 gaussian 的所有维度在 Wilcoxon + BH-FDR 下均不显著（p_adj ∈ [0.249, 0.569]），数值差异 +0.0058 仅为描述性趋势。但 real 对 shuffle 和 zero 的 Mean-Rank 在 n=1858 下显著更低（p_adj=0.012, dz≈−0.09）。
 
-**结论**：**模式 B** — 学到 EEG 统计特性，但未学到跨模态对应关系。
+**结论**：**模式 B（弱化版）** —— 模型对 "句子级分布结构" 有感知（可区分 shuffle 打乱 / zero 全零），但未学到 "真实 EEG vs 同分布噪声" 的判别性表征。⚠️ 数据修复：旧版结论为"模式B—学到EEG统计特性"，v5修正为弱化版
 
 ### b2 EEG-To-Text
 
@@ -297,8 +361,6 @@ $$\mathbf{S} \in \mathbb{R}^{M \times M}, \quad S_{ij} = \hat{\mathbf{u}}_i \cdo
 **诊断**：所有条件差异 < 0.001
 
 **结论**：**模式 A** — 编码器完全无效，未从 EEG 学到任何信息。
-（p值显著）
-（降维可视化）
 
 ### b3 EEG2Text
 
@@ -327,29 +389,30 @@ $$\mathbf{S} \in \mathbb{R}^{M \times M}, \quad S_{ij} = \hat{\mathbf{u}}_i \cdo
 **结论**：**模式 B + 异常** — 零输入反而更好，存在严重的文本解码器偏差。
 
 ### 跨模型同噪声内 Friedman + Nemenyi CD
-（n_blocks=54, Nemenyi CD₀.₀₅=0.638）
-
-| 噪声条件 | Friedman χ² | p | Kendall W | 显著对 (Nemenyi) |
-|---------|------------|---|-----------|------------------|
-| **real** | 8.55 | **0.0359** ★ | 0.053 | 无（所有对 ΔRank < CD） |
-| **gaussian** | 45.43 | **7.5 × 10⁻¹⁰** ★★★ | 0.280 | cet_mae vs eeg2text/glim, eeg_to_text vs eeg2text/glim, eeg2text vs glim |
-| **shuffle** | 18.10 | **4.2 × 10⁻⁴** ★★★ | 0.112 | cet_mae vs eeg2text, eeg_to_text vs eeg2text |
-| **zero** | 55.18 | **6.3 × 10⁻¹²** ★★★ | 0.341 | cet_mae vs eeg2text, eeg_to_text vs eeg2text/glim, eeg2text vs glim |
+（n_blocks=1858, Nemenyi CD₀.₀₅=0.109）⚠️ 数据修复
+| 噪声条件 | Friedman χ² | p | Kendall W | avg_rank (cet_mae / eeg_to_text / eeg2text / glim) | 显著对 (Nemenyi, ΔRank > 0.109) |
+|---------|------------|---|-----------|----------------------------------------------------|---------------------------------|
+| **real** | 15.68 | **1.3 × 10⁻³** ★★ | 0.0028 | 2.433 / 2.517 / 2.588 / 2.462 | cet_mae vs eeg2text (ΔR=0.155)；eeg2text vs glim (ΔR=0.126) |
+| **gaussian** | 23.33 | **3.4 × 10⁻⁵** ★★★ | 0.0042 | 2.518 / 2.557 / 2.547 / 2.378 | cet_mae vs glim (ΔR=0.140)；eeg_to_text vs glim (ΔR=0.180)；eeg2text vs glim (ΔR=0.170) |
+| shuffle | 4.94 | 0.176 (n.s.) | 0.0009 | 2.456 / 2.490 / 2.548 / 2.506 | 无（所有对 ΔRank < CD） |
+| **zero** | 45.92 | **5.9 × 10⁻¹⁰** ★★★ | 0.0082 | 2.523 / 2.541 / 2.604 / 2.333 | cet_mae vs glim (ΔR=0.190)；eeg_to_text vs glim (ΔR=0.208)；eeg2text vs glim (ΔR=0.272) |
 
 **核心观察**：
-- 在 **real** 条件下，模型间**无显著差异**（所有模型都接近随机），与 §2.1 的"四模型均接近随机基线"一致。
-- 在**异常输入** (gaussian/shuffle/zero) 下，Kendall W 显著升高（0.28–0.34），且 GLIM 排名跃升为最优（zero 下 avg_rank=3.31），说明模型对退化输入的响应模式**存在系统性差异**——GLIM 对零输入尤其敏感。
+- **Kendall W 普遍偏低**（≤ 0.008）：即便在 zero 条件下 W 也仅 0.0082，说明模型间的排序一致性极弱。
+- **real 条件新发现**：修复 S-1 后，real 下 Friedman p=1.3×10⁻³，Nemenyi 定位出 `cet_mae < eeg2text`、`glim < eeg2text` 两个显著对。
+- **shuffle 条件由显著转不显著**（旧版: p=4.2×10⁻⁴ → v5: p=0.176）：S-1 坍缩导致的人为偏差被消除。
+- **gaussian / zero 下 GLIM 反常**：GLIM 在这两种条件下均获得最低 avg_rank，说明 GLIM 对退化输入尤其敏感。
 
-### 模型内成对显著性（Holm 校正 α=5/n=0.0017；BH FDR 全局 α=0.05）
+### 模型内成对显著性（Holm 校正 α=5/n=0.0017；BH FDR 全局 α=0.05；n=1858）⚠️ 数据修复
 
-| 模型 | BH-FDR 显著的对比 (p_adj<0.05) | 解读 |
-|------|-------------------------------|------|
-| **CET-MAE** | real_vs_gaussian MRR (p_adj=0.037), real_vs_zero MRR/MeanRank (p_adj=0.011), shuffle_vs_zero MRR (p_adj=0.020) | **real > gaussian/zero 显著**，支撑"模式 B：学到 EEG 统计特性" |
-| **EEG-To-Text** | 仅 shuffle_vs_zero MRR (p_adj=0.011) | real/gaussian/shuffle 之间**全部 n.s.**，定量确认"模式 A：编码器完全无效" |
-| **EEG2Text** | gaussian_vs_zero MeanRank (p_adj=0.048), shuffle_vs_zero R@5 (p_adj=0.048) | real 相对于任一噪声**均不显著**，支撑"模式 A：编码器未生效" |
-| **GLIM** | real_vs_gaussian MRR/MeanRank, real_vs_zero MRR/MeanRank, gaussian_vs_shuffle MRR/MeanRank, shuffle_vs_zero MRR/MeanRank（全部 p_adj=0.011） | **zero/gaussian 显著优于 real 与 shuffle**，定量确认"模式 B + 异常" |
+| 模型 | BH-FDR 显著的对比 (p_adj<0.05) | 方向 | 解读 |
+|------|-------------------------------|------|------|
+| **CET-MAE** | real_vs_shuffle/**mean_rank** (p_adj=**0.012**, dz=−0.100)；real_vs_zero/**mean_rank** (p_adj=**0.012**, dz=−0.080) | real < shuffle / zero（**real 更优**） | real 相对 shuffle/zero 的 Mean-Rank 显著更低；但 **real vs gaussian 在所有指标上均不显著** (p_adj 0.249–0.569, |dz|<0.03) —— 模式 B 弱化版 |
+| **EEG-To-Text** | **无** | — | real/gaussian/shuffle/zero 两两对比在 BH-FDR 下**全部 n.s.**；模式 A |
+| **EEG2Text** | **无** | — | real 对任意噪声均不显著（最接近 real_vs_zero/r@1 p_adj=0.056）；模式 A |
+| **GLIM** | real_vs_gaussian/r@10 (0.012)；real_vs_shuffle/mean_rank (0.012)；real_vs_zero/**r@5, r@10** (0.012)、**mrr, mean_rank** (0.045)；gaussian_vs_shuffle/r@10 (0.018)、mean_rank (0.012)；gaussian_vs_zero/r@5 (0.018)、mean_rank (0.012)；shuffle_vs_zero/r@5 (0.012)、r@10 (0.018)、mrr (0.034)、mean_rank (0.012) | **gaussian / zero > real、zero > shuffle** | 12 / 16 个全局显著对比来自 GLIM；`real vs zero` 方向一致为零更优；模式 B + 异常 |
 
 **关键结论**：
-1. **CET-MAE** 是唯一在 BH-FDR 全局校正下 `real > gaussian` 显著的模型（MRR 维度），验证了其微弱但真实的 EEG 信号利用。
-2. **EEG-To-Text / EEG2Text** 的 real 与任意噪声差异均未通过 BH-FDR，**统计证据确认编码器失效**。
-3. **GLIM** 的 `zero > real` 反常在 MRR 与 MeanRank 上均达到 p_adj=0.011 的显著水平，确认了文本解码器先验主导的架构缺陷。
+1. **CET-MAE 有限真实信号**：是唯一对 `real > shuffle / zero` 的 Mean-Rank 显著的模型（两个 p_adj=0.012），但 `real vs gaussian` 所有指标 p_adj > 0.24。
+2. **EEG-To-Text / EEG2Text 的"零显著"铁证**：BH-FDR 下**没有任何 real-vs-noise 显著对比**。
+3. **GLIM 异常被大幅加强**：旧版 4 对显著对比扩展到 **12 对**，方向**全部指向退化输入更优**。
